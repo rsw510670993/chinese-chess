@@ -6,6 +6,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
         maxDepth: 1,
         timeLimitMs: 180,
         hintTimeLimitMs: 650,
+        openingHintTimeLimitMs: 1000,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 220,
         randomTemperature: 150
@@ -14,6 +15,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
         maxDepth: 2,
         timeLimitMs: 650,
         hintTimeLimitMs: 1600,
+        openingHintTimeLimitMs: 3000,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 160,
         randomTemperature: 105
@@ -45,7 +47,7 @@ export const DIFFICULTY_LEVELS = Object.freeze(
 /**
  * 提示比同档对手多搜索一层，并缩小随机范围，使建议整体更可靠。
  */
-export function getSearchProfile(difficulty, purpose = 'move') {
+export function getSearchProfile(difficulty, purpose = 'move', context = {}) {
     const config = DIFFICULTY_CONFIGS[difficulty] ?? DIFFICULTY_CONFIGS.standard;
 
     if (purpose !== 'hint') {
@@ -58,9 +60,14 @@ export function getSearchProfile(difficulty, purpose = 'move') {
         };
     }
 
+    const moveCount = Number.isFinite(context.moveCount) ? Math.max(0, context.moveCount) : Infinity;
+    const receivesOpeningBoost = moveCount < 6 && (difficulty === 'fast' || difficulty === 'standard');
+
     return {
-        maxDepth: config.maxDepth + 1,
-        timeLimitMs: config.hintTimeLimitMs,
+        maxDepth: config.maxDepth + 1 + (receivesOpeningBoost ? 1 : 0),
+        timeLimitMs: receivesOpeningBoost
+            ? config.openingHintTimeLimitMs
+            : config.hintTimeLimitMs,
         randomCandidateLimit: Math.min(3, config.randomCandidateLimit),
         maxRandomScoreGap: Math.round(config.maxRandomScoreGap * 0.75),
         randomTemperature: Math.max(30, Math.round(config.randomTemperature * 0.65))

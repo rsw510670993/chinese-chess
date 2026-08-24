@@ -31,7 +31,9 @@ export class ChessAIClient {
     async getBestMove({purpose = 'move'} = {}) {
         this.cancelSearch();
 
-        const searchOptions = getSearchProfile(this.difficulty, purpose);
+        const searchOptions = getSearchProfile(this.difficulty, purpose, {
+            moveCount: this.chess.moveHistory.length
+        });
 
         if (typeof Worker === 'undefined') {
             return this.getFallbackMove(searchOptions);
