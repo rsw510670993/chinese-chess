@@ -671,6 +671,7 @@ button:not(:disabled):active { transform: translateY(1px); }
 .modal-card h2 { margin: 0; font-size: 30px; }
 .modal-card > p:not(.eyebrow) { margin: 9px 0 0; color: var(--muted); }
 .modal-actions { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions.single-action { grid-template-columns: 1fr; }
 
 @media (max-width: 820px) {
   .game-layout { grid-template-columns: 1fr; }

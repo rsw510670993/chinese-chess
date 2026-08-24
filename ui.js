@@ -586,12 +586,17 @@ export class GameOverModal {
         this.title = document.getElementById('gameOverTitle');
         this.message = document.getElementById('gameOverMessage');
         this.closeBtn = document.getElementById('closeModalBtn');
+        this.undoBtn = document.getElementById('modalUndoButton');
+        this.actionsEl = this.modal.querySelector('.modal-actions');
+        this.undoCallback = null;
     }
 
     /**
      * 显示弹窗
+     * @param {string|null} winner - 胜方：'red'、'black' 或 null（和棋）
+     * @param {boolean} canUndo - 是否允许悔棋
      */
-    show(winner) {
+    show(winner, canUndo = false) {
         if (winner === 'red') {
             this.icon.textContent = '胜';
             this.title.textContent = '恭喜获胜！';
@@ -605,6 +610,14 @@ export class GameOverModal {
             this.title.textContent = '和棋';
             this.message.textContent = '双方平局';
         }
+
+        if (this.undoBtn) {
+            const showUndo = (winner === null || winner === 'draw') && canUndo;
+            this.undoBtn.hidden = !showUndo;
+            this.undoBtn.disabled = !showUndo;
+        }
+
+        this.actionsEl?.classList.toggle('single-action', !this.undoBtn || this.undoBtn.hidden);
         
         this.modal.hidden = false;
     }
@@ -621,6 +634,14 @@ export class GameOverModal {
      */
     onClose(callback) {
         this.closeBtn.addEventListener('click', callback);
+    }
+
+    /**
+     * 设置悔棋回调
+     */
+    onUndo(callback) {
+        this.undoCallback = callback;
+        this.undoBtn?.addEventListener('click', callback);
     }
 }
 

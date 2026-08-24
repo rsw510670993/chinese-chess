@@ -60,6 +60,7 @@ class GameController {
             this.gameOverModal.hide();
             this.newGame();
         });
+        this.gameOverModal.onUndo(() => this.undoFromGameOver());
         this.checkmateUndoModal.onUndo(() => this.undoPlayerCheckmate());
         this.checkmateUndoModal.onEnd(() => {
             this.checkmateUndoModal.hide();
@@ -535,13 +536,37 @@ class GameController {
             this.audioManager.playDrawSound();
         }
         
+        const canUndo = this.chess.moveHistory.length >= 2;
         if (this.chess.winner) {
-            this.gameOverModal.show(this.chess.winner);
+            this.gameOverModal.show(this.chess.winner, canUndo);
         } else {
-            this.gameOverModal.show('draw');
+            this.gameOverModal.show('draw', canUndo);
         }
         
         this.updateDisplay();
+    }
+
+    /**
+     * 从游戏结束弹窗悔棋，回到对局中。
+     */
+    undoFromGameOver() {
+        const result = this.chess.undoMove();
+        if (!result) {
+            this.gameOverModal.hide();
+            this.newGame();
+            return;
+        }
+
+        this.gameOverModal.hide();
+        this.audioManager.playUndoSound();
+        this.renderer.clearSelection();
+        this.renderer.setLastMove(null);
+        this.rebuildMoveHistory();
+        this.updateDisplay();
+
+        if (this.timerEnabled) {
+            this.startTimer();
+        }
     }
 
     /**
