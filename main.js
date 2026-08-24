@@ -294,19 +294,15 @@ class GameController {
             const hintMove = await this.ai.getBestMove();
             
             if (hintMove && hintMove.from && hintMove.to) {
-                // 只标记推荐落点，并用箭头明确起点和终点
-                this.renderer.setSelectedPiece(hintMove.from.x, hintMove.from.y);
-                this.renderer.setLegalMoves([hintMove.to]);
+                // 提示只负责展示，不占用真实的棋子选择状态
+                this.renderer.clearSelection();
                 this.renderer.setSuggestedMove(hintMove);
                 this.updateDisplay();
                 
-                // 3秒后清除高亮，但保持正常的游戏状态
+                // 3秒后清除提示；玩家提前选子时也会自动清除
                 setTimeout(() => {
-                    // 只有当前仍然是提示状态时才清除（避免用户已经选择了其他棋子）
-                    if (this.renderer.selectedPiece && 
-                        this.renderer.selectedPiece.x === hintMove.from.x && 
-                        this.renderer.selectedPiece.y === hintMove.from.y) {
-                        this.renderer.clearSelection();
+                    if (this.renderer.suggestedMove === hintMove) {
+                        this.renderer.setSuggestedMove(null);
                         this.updateDisplay();
                     }
                 }, 3000);

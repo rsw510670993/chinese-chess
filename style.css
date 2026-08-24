@@ -186,6 +186,10 @@
     pointer-events: none;
 }
 
+.suggestion-arrow-layer * {
+    pointer-events: none !important;
+}
+
 .suggestion-arrow-line {
     stroke: #2563eb;
     stroke-linecap: round;
