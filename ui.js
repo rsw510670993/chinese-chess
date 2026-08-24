@@ -1,6 +1,6 @@
 // UI 渲染模块
 
-// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, and inline player status support, 2026.
+// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, inline status, and visual move suggestions, 2026.
 
 /**
  * 根据容器可用宽度计算棋盘尺寸。
@@ -32,6 +32,7 @@ export class BoardRenderer {
         this.selectedPiece = null;
         this.legalMoves = [];
         this.lastMove = null;
+        this.suggestedMove = null;
         this.onPieceClick = null;
         this.onMoveClick = null;
         
@@ -207,7 +208,7 @@ export class BoardRenderer {
         this.currentChess = chess;
         
         // 清除旧的棋子和标记
-        const oldPieces = this.container.querySelectorAll('.chess-piece, .move-hint, .last-move-from, .last-move-to');
+        const oldPieces = this.container.querySelectorAll('.chess-piece, .move-hint, .last-move-from, .last-move-to, .suggestion-arrow-layer');
         oldPieces.forEach(el => el.remove());
         
         // 渲染最后一步移动标记
@@ -228,6 +229,11 @@ export class BoardRenderer {
         // 渲染可移动位置
         if (this.selectedPiece && this.legalMoves.length > 0) {
             this.renderLegalMoves(this.legalMoves, board);
+        }
+
+        // 推荐走法使用独立箭头和目标圆环，避免与普通合法落点混淆
+        if (this.suggestedMove) {
+            this.renderSuggestion(this.suggestedMove);
         }
     }
 
@@ -359,9 +365,80 @@ export class BoardRenderer {
     }
 
     /**
+     * 绘制推荐走法箭头和目标圆环
+     */
+    renderSuggestion(move) {
+        const startX = this.padding + move.from.x * this.cellSize;
+        const startY = this.padding + move.from.y * this.cellSize;
+        const targetX = this.padding + move.to.x * this.cellSize;
+        const targetY = this.padding + move.to.y * this.cellSize;
+        const deltaX = targetX - startX;
+        const deltaY = targetY - startY;
+        const distance = Math.hypot(deltaX, deltaY);
+
+        if (distance === 0) return;
+
+        const unitX = deltaX / distance;
+        const unitY = deltaY / distance;
+        const startOffset = Math.min(this.cellSize * 0.38, distance * 0.2);
+        const endOffset = Math.min(this.cellSize * 0.42, distance * 0.25);
+        const arrowStartX = startX + unitX * startOffset;
+        const arrowStartY = startY + unitY * startOffset;
+        const arrowEndX = targetX - unitX * endOffset;
+        const arrowEndY = targetY - unitY * endOffset;
+        const markerId = 'suggestion-arrowhead';
+        const arrowheadSize = Math.max(10, this.cellSize * 0.28);
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('suggestion-arrow-layer');
+        svg.setAttribute('width', this.boardWidth);
+        svg.setAttribute('height', this.boardHeight);
+        svg.setAttribute('viewBox', `0 0 ${this.boardWidth} ${this.boardHeight}`);
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', markerId);
+        marker.setAttribute('markerWidth', arrowheadSize);
+        marker.setAttribute('markerHeight', arrowheadSize);
+        marker.setAttribute('refX', arrowheadSize - 1);
+        marker.setAttribute('refY', arrowheadSize / 2);
+        marker.setAttribute('orient', 'auto');
+        marker.setAttribute('markerUnits', 'userSpaceOnUse');
+        const arrowhead = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrowhead.setAttribute('d', `M 0 0 L ${arrowheadSize} ${arrowheadSize / 2} L 0 ${arrowheadSize} z`);
+        arrowhead.classList.add('suggestion-arrowhead');
+        marker.appendChild(arrowhead);
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.classList.add('suggestion-arrow-line');
+        line.setAttribute('x1', arrowStartX);
+        line.setAttribute('y1', arrowStartY);
+        line.setAttribute('x2', arrowEndX);
+        line.setAttribute('y2', arrowEndY);
+        line.setAttribute('stroke-width', Math.max(3, this.cellSize * 0.08));
+        line.setAttribute('marker-end', `url(#${markerId})`);
+        svg.appendChild(line);
+
+        const target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        target.classList.add('suggestion-target');
+        target.setAttribute('cx', targetX);
+        target.setAttribute('cy', targetY);
+        target.setAttribute('r', Math.max(10, this.cellSize * 0.34));
+        target.setAttribute('stroke-width', Math.max(3, this.cellSize * 0.07));
+        svg.appendChild(target);
+
+        this.container.appendChild(svg);
+    }
+
+    /**
      * 设置选中的棋子
      */
     setSelectedPiece(x, y) {
+        this.suggestedMove = null;
         this.selectedPiece = x !== null ? {x, y} : null;
     }
 
@@ -370,6 +447,13 @@ export class BoardRenderer {
      */
     setLegalMoves(moves) {
         this.legalMoves = moves;
+    }
+
+    /**
+     * 设置推荐走法
+     */
+    setSuggestedMove(move) {
+        this.suggestedMove = move;
     }
 
     /**
@@ -385,6 +469,7 @@ export class BoardRenderer {
     clearSelection() {
         this.selectedPiece = null;
         this.legalMoves = [];
+        this.suggestedMove = null;
     }
 }
 

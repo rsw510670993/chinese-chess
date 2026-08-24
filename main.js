@@ -294,10 +294,10 @@ class GameController {
             const hintMove = await this.ai.getBestMove();
             
             if (hintMove && hintMove.from && hintMove.to) {
-                // 高亮提示的棋子和可移动位置
+                // 只标记推荐落点，并用箭头明确起点和终点
                 this.renderer.setSelectedPiece(hintMove.from.x, hintMove.from.y);
-                const legalMoves = this.chess.getLegalMoves(hintMove.from.x, hintMove.from.y);
-                this.renderer.setLegalMoves(legalMoves);
+                this.renderer.setLegalMoves([hintMove.to]);
+                this.renderer.setSuggestedMove(hintMove);
                 this.updateDisplay();
                 
                 // 3秒后清除高亮，但保持正常的游戏状态
