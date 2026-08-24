@@ -215,6 +215,51 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 button:not(:disabled):active { transform: translateY(1px); }
 .secondary-button.is-muted { opacity: .5; }
 
+/* 彩色按钮：恢复原来的渐变风格 */
+#newGameBtn,
+#closeModalBtn {
+  border-color: #b91c1c;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+#newGameBtn:hover,
+#closeModalBtn:hover {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+}
+
+#undoBtn,
+#checkmateUndoBtn {
+  border-color: #1d4ed8;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+#undoBtn:hover,
+#checkmateUndoBtn:hover {
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+}
+
+#hintBtn {
+  border-color: #15803d;
+  color: #fff;
+  background: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+#hintBtn:hover {
+  background: linear-gradient(135deg, #16a34a, #166534);
+}
+
+#soundBtn {
+  border-color: #6d28d9;
+  color: #fff;
+  background: linear-gradient(135deg, #a855f7, #6d28d9);
+}
+
+#soundBtn:hover {
+  background: linear-gradient(135deg, #9333ea, #5b21b6);
+}
+
 .hint-countdown {
   margin-left: 6px;
   padding: 2px 6px;
