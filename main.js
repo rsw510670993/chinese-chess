@@ -1,8 +1,8 @@
-// Modified from shibing624/chinese-chess-ai: difficulty controls, optional clock, inline player status, and timed move hints, 2026.
+// Modified from shibing624/chinese-chess-ai: background search, difficulty controls, optional clock, inline status, and timed hints, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
-import { ChessAI } from './ai.js';
+import { ChessAIClient } from './ai-client.js';
 import { BoardRenderer, GameInfoDisplay, GameOverModal } from './ui.js';
 import { AudioManager } from './audio.js';
 
@@ -12,7 +12,7 @@ import { AudioManager } from './audio.js';
 class GameController {
     constructor() {
         this.chess = new ChineseChess();
-        this.ai = new ChessAI(this.chess);
+        this.ai = new ChessAIClient(this.chess);
         this.renderer = new BoardRenderer('chessboard');
         this.infoDisplay = new GameInfoDisplay();
         this.gameOverModal = new GameOverModal();
@@ -186,7 +186,9 @@ class GameController {
             }
             
         } catch (error) {
-            console.error('AI 移动错误:', error);
+            if (error.name !== 'AbortError') {
+                console.error('AI 移动错误:', error);
+            }
         } finally {
             this.isAIThinking = false;
             this.infoDisplay.setPlayerStatus('black');
@@ -214,6 +216,7 @@ class GameController {
     newGame() {
         this.audioManager.playNewGameSound();
 
+        this.ai.cancelSearch();
         this.cancelHintCountdown();
         
         this.chess.reset();
@@ -229,6 +232,7 @@ class GameController {
         this.infoDisplay.updateTimer('black', this.blackTime);
         
         this.isAIThinking = false;
+        this.isHintSearching = false;
         
         this.updateDisplay();
         if (this.timerEnabled) {
@@ -314,7 +318,9 @@ class GameController {
                 this.startHintCountdown(hintMove, 3);
             }
         } catch (error) {
-            console.error('提示错误:', error);
+            if (error.name !== 'AbortError') {
+                console.error('提示错误:', error);
+            }
         } finally {
             this.isHintSearching = false;
             this.infoDisplay.setPlayerStatus('red');
@@ -408,6 +414,7 @@ class GameController {
      * 处理游戏结束
      */
     handleGameOver() {
+        this.ai.cancelSearch();
         this.stopTimer();
         
         // 播放游戏结束音效

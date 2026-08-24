@@ -1,40 +1,91 @@
-// Modified from shibing624/chinese-chess-ai: selectable difficulty and varied near-best move selection, 2026.
+// Modified from shibing624/chinese-chess-ai: time-limited iterative search and varied near-best move selection, 2026.
 // AI 对弈模块 - 极小化极大算法 + Alpha-Beta剪枝
 
-export const DIFFICULTY_LEVELS = Object.freeze({
-    fast: 1,
-    standard: 2,
-    hard: 4,
-    master: 6
+export const DIFFICULTY_CONFIGS = Object.freeze({
+    fast: Object.freeze({
+        maxDepth: 1,
+        timeLimitMs: 180,
+        randomCandidateLimit: 5,
+        maxRandomScoreGap: 220,
+        randomTemperature: 150
+    }),
+    standard: Object.freeze({
+        maxDepth: 2,
+        timeLimitMs: 650,
+        randomCandidateLimit: 5,
+        maxRandomScoreGap: 160,
+        randomTemperature: 105
+    }),
+    hard: Object.freeze({
+        maxDepth: 4,
+        timeLimitMs: 2200,
+        randomCandidateLimit: 5,
+        maxRandomScoreGap: 120,
+        randomTemperature: 75
+    }),
+    master: Object.freeze({
+        maxDepth: 6,
+        timeLimitMs: 5000,
+        randomCandidateLimit: 5,
+        maxRandomScoreGap: 90,
+        randomTemperature: 50
+    })
 });
 
-const RANDOM_CANDIDATE_LIMIT = 5;
-const MAX_RANDOM_SCORE_GAP = 120;
+export const DIFFICULTY_LEVELS = Object.freeze(
+    Object.fromEntries(
+        Object.entries(DIFFICULTY_CONFIGS).map(([name, config]) => [name, config.maxDepth])
+    )
+);
+
+const DEEP_SEARCH_CANDIDATE_LIMIT = 8;
+const DEEP_SEARCH_SCORE_GAP = 500;
+
+class SearchTimeoutError extends Error {
+    constructor() {
+        super('Search time limit reached');
+        this.name = 'SearchTimeoutError';
+    }
+}
 
 /**
  * 从评分接近最优的前五个候选中随机选择走法。
  * 120 分低于一个兵的基础价值，避免为了随机性选择明显亏子的走法。
  */
-export function selectVariedMove(scoredMoves, random = Math.random) {
+export function selectVariedMove(scoredMoves, random = Math.random, options = {}) {
     if (!Array.isArray(scoredMoves) || scoredMoves.length === 0) {
         return null;
     }
 
+    const candidateLimit = options.candidateLimit ?? 5;
+    const maxScoreGap = options.maxScoreGap ?? 120;
+    const temperature = Math.max(1, options.temperature ?? 80);
     const topCandidates = scoredMoves
         .slice()
         .sort((a, b) => b.score - a.score)
-        .slice(0, RANDOM_CANDIDATE_LIMIT);
+        .slice(0, candidateLimit);
     const bestScore = topCandidates[0].score;
     const nearBestCandidates = topCandidates.filter(
-        (candidate) => bestScore - candidate.score <= MAX_RANDOM_SCORE_GAP
+        (candidate) => bestScore - candidate.score <= maxScoreGap
     );
     const randomValue = Number(random());
     const normalizedRandom = Number.isFinite(randomValue)
         ? Math.min(Math.max(randomValue, 0), 0.999999999999)
         : 0;
-    const selectedIndex = Math.floor(normalizedRandom * nearBestCandidates.length);
+    const weights = nearBestCandidates.map(
+        (candidate) => Math.exp((candidate.score - bestScore) / temperature)
+    );
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+    let threshold = normalizedRandom * totalWeight;
 
-    return nearBestCandidates[selectedIndex].move;
+    for (let i = 0; i < nearBestCandidates.length; i++) {
+        threshold -= weights[i];
+        if (threshold < 0) {
+            return nearBestCandidates[i].move;
+        }
+    }
+
+    return nearBestCandidates[nearBestCandidates.length - 1].move;
 }
 
 /**
@@ -54,6 +105,8 @@ export class ChessAI {
         this.thinkingTime = 0; // 仅让出一次事件循环，确保处理状态先完成绘制
         this.nodesSearched = 0; // 搜索节点数统计
         this.pruneCount = 0; // 剪枝次数统计
+        this.searchDeadline = Infinity;
+        this.lastSearchStats = null;
         
         // 棋子基础价值表（参考专业象棋引擎）
         this.pieceValues = {
@@ -169,7 +222,7 @@ export class ChessAI {
      * 设置检索难度
      */
     setDifficulty(difficulty) {
-        if (!Object.prototype.hasOwnProperty.call(DIFFICULTY_LEVELS, difficulty)) {
+        if (!Object.prototype.hasOwnProperty.call(DIFFICULTY_CONFIGS, difficulty)) {
             return false;
         }
 
@@ -182,8 +235,8 @@ export class ChessAI {
      * AI 思考并返回最佳移动
      * 主入口函数
      */
-    async getBestMove() {
-        // 模拟思考时间
+    async getBestMove(options = {}) {
+        // 先让出事件循环，确保处理状态完成绘制
         await this.sleep(this.thinkingTime);
         
         // 重置统计
@@ -191,12 +244,20 @@ export class ChessAI {
         this.pruneCount = 0;
         
         console.log('=== AI 开始思考 ===');
-        console.log('搜索深度:', this.maxDepth);
+        const config = DIFFICULTY_CONFIGS[this.difficulty];
+        const maxDepth = options.maxDepth ?? config.maxDepth;
+        const timeLimitMs = options.timeLimitMs ?? config.timeLimitMs;
+
+        console.log('最大搜索深度:', maxDepth);
+        console.log('思考时间上限:', timeLimitMs, 'ms');
         
         const startTime = Date.now();
         
-        // 使用 Alpha-Beta 剪枝搜索最佳走法
-        const bestMove = this.alphaBetaSearch();
+        const bestMove = this.iterativeDeepeningSearch({
+            maxDepth,
+            timeLimitMs,
+            random: options.random ?? Math.random
+        });
         
         const endTime = Date.now();
         const timeUsed = endTime - startTime;
@@ -204,6 +265,7 @@ export class ChessAI {
         console.log('搜索节点数:', this.nodesSearched);
         console.log('剪枝次数:', this.pruneCount);
         console.log('搜索时间:', timeUsed, 'ms');
+        console.log('完成深度:', this.lastSearchStats?.depthReached ?? 0);
         console.log('=== AI 思考完成 ===');
         
         return bestMove;
@@ -214,48 +276,133 @@ export class ChessAI {
      * 返回最佳走法
      */
     alphaBetaSearch() {
-        const allMoves = this.getAllPossibleMoves();
-        
+        return this.iterativeDeepeningSearch({
+            maxDepth: this.maxDepth,
+            timeLimitMs: Infinity,
+            random: Math.random
+        });
+    }
+
+    /**
+     * 在固定时间内逐层加深。超时的层会被丢弃，只使用最后完整层的评分。
+     */
+    iterativeDeepeningSearch({maxDepth, timeLimitMs, random}) {
+        const allMoves = this.sortMoves(this.getAllPossibleMoves());
+
         if (allMoves.length === 0) {
             console.log('无可用走法');
+            this.lastSearchStats = {
+                depthReached: 0,
+                elapsedMs: 0,
+                timedOut: false,
+                candidatesSearched: 0
+            };
             return null;
         }
-        
-        const scoredMoves = [];
-        
-        // 对移动进行初步排序，提高剪枝效率
-        const sortedMoves = this.sortMoves(allMoves);
-        
-        console.log('候选走法数量:', sortedMoves.length);
-        
-        // 遍历所有可能的走法
-        for (let i = 0; i < sortedMoves.length; i++) {
-            const move = sortedMoves[i];
-            
-            // 执行移动
-            const moveResult = this.chess.makeMove(
-                move.from.x, move.from.y, 
-                move.to.x, move.to.y
-            );
-            
-            // 使用完整窗口取得可比较的根节点评分，供候选走法排名。
-            const score = -this.alphaBeta(this.maxDepth - 1, -Infinity, Infinity);
-            
-            // 撤销移动（使用单步撤销）
-            this.chess.undoSingleMove(moveResult);
-            
-            console.log(`走法 ${i+1}: 评分 ${score}`);
-            scoredMoves.push({move, score});
+
+        const startedAt = Date.now();
+        this.searchDeadline = Number.isFinite(timeLimitMs)
+            ? startedAt + Math.max(1, timeLimitMs)
+            : Infinity;
+
+        let searchMoves = allMoves;
+        let completedScores = null;
+        let depthReached = 0;
+        let timedOut = false;
+
+        for (let depth = 1; depth <= maxDepth; depth++) {
+            try {
+                const iterationScores = this.scoreRootMoves(searchMoves, depth);
+                completedScores = iterationScores;
+                depthReached = depth;
+
+                // 前两层覆盖全部走法；更深层只深化浅层表现较好的候选。
+                if (depth >= 2) {
+                    const nextCandidateLimit = depth >= 4
+                        ? 2
+                        : depth === 3
+                            ? 6
+                            : DEEP_SEARCH_CANDIDATE_LIMIT;
+                    searchMoves = this.buildDeepSearchCandidates(iterationScores, nextCandidateLimit);
+                } else {
+                    searchMoves = iterationScores.map((candidate) => candidate.move);
+                }
+            } catch (error) {
+                if (!(error instanceof SearchTimeoutError)) {
+                    throw error;
+                }
+                timedOut = true;
+                break;
+            }
         }
 
-        const rankedMoves = scoredMoves.slice().sort((a, b) => b.score - a.score);
-        const selectedMove = selectVariedMove(rankedMoves);
-        const selectedRank = rankedMoves.findIndex((candidate) => candidate.move === selectedMove) + 1;
+        const config = DIFFICULTY_CONFIGS[this.difficulty];
+        const selectedMove = completedScores
+            ? selectVariedMove(completedScores, random, {
+                candidateLimit: config.randomCandidateLimit,
+                maxScoreGap: config.maxRandomScoreGap,
+                temperature: config.randomTemperature
+            })
+            : allMoves[Math.floor(Math.min(Math.max(Number(random()) || 0, 0), 0.999999) * Math.min(3, allMoves.length))];
 
-        console.log('最佳走法评分:', rankedMoves[0].score);
-        console.log('本次选择排名:', selectedRank);
+        this.lastSearchStats = {
+            depthReached,
+            elapsedMs: Date.now() - startedAt,
+            timedOut,
+            candidatesSearched: completedScores?.length ?? 0
+        };
+        this.searchDeadline = Infinity;
 
         return selectedMove;
+    }
+
+    /**
+     * 使用完整窗口为本轮候选评分；只有整轮完成后评分才会生效。
+     */
+    scoreRootMoves(moves, depth) {
+        const scoredMoves = [];
+
+        for (const move of moves) {
+            this.checkSearchDeadline(true);
+            const moveResult = this.chess.makeMove(
+                move.from.x, move.from.y,
+                move.to.x, move.to.y
+            );
+
+            try {
+                const score = -this.alphaBeta(depth - 1, -Infinity, Infinity);
+                scoredMoves.push({move, score});
+            } finally {
+                this.chess.undoSingleMove(moveResult);
+            }
+        }
+
+        return scoredMoves.sort((a, b) => b.score - a.score);
+    }
+
+    /**
+     * 深层搜索只保留浅层排名靠前且分差合理的候选。
+     */
+    buildDeepSearchCandidates(scoredMoves, candidateLimit) {
+        const rankedMoves = scoredMoves.slice().sort((a, b) => b.score - a.score);
+        const bestScore = rankedMoves[0].score;
+        let candidates = rankedMoves
+            .filter((candidate) => bestScore - candidate.score <= DEEP_SEARCH_SCORE_GAP)
+            .slice(0, candidateLimit);
+
+        // 浅层至少深化前三名；第五层以后保留两名，仍有变化但更偏向强招。
+        const minimumCandidates = Math.min(candidateLimit, 3, rankedMoves.length);
+        if (candidates.length < minimumCandidates) {
+            candidates = rankedMoves.slice(0, minimumCandidates);
+        }
+
+        return candidates.map((candidate) => candidate.move);
+    }
+
+    checkSearchDeadline(force = false) {
+        if ((force || (this.nodesSearched & 127) === 0) && Date.now() >= this.searchDeadline) {
+            throw new SearchTimeoutError();
+        }
     }
 
     /**
@@ -268,6 +415,7 @@ export class ChessAI {
      */
     alphaBeta(depth, alpha, beta) {
         this.nodesSearched++;
+        this.checkSearchDeadline();
         
         // 终止条件：达到最大深度或游戏结束
         if (depth === 0 || this.chess.gameOver) {
@@ -292,12 +440,15 @@ export class ChessAI {
                 move.from.x, move.from.y, 
                 move.to.x, move.to.y
             );
-            
-            // 递归搜索（极小化对手的得分）
-            const score = -this.alphaBeta(depth - 1, -beta, -alpha);
-            
-            // 撤销移动（使用单步撤销）
-            this.chess.undoSingleMove(moveResult);
+
+            let score;
+            try {
+                // 递归搜索（极小化对手的得分）
+                score = -this.alphaBeta(depth - 1, -beta, -alpha);
+            } finally {
+                // 超时也必须完整恢复棋盘。
+                this.chess.undoSingleMove(moveResult);
+            }
             
             // Beta 剪枝：如果当前分数已经大于等于 beta，
             // 说明对手不会选择这条路径，可以直接剪枝
