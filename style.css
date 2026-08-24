@@ -1,4 +1,4 @@
-/* Modified from shibing624/chinese-chess-ai: responsive board, mobile interaction, and visual move suggestions, 2026. */
+/* Modified from shibing624/chinese-chess-ai: responsive board, mobile interaction, selection highlight, and visual move suggestions, 2026. */
 
 /* 棋盘样式 */
 .chess-board {
@@ -87,8 +87,30 @@
 }
 
 .chess-piece.selected {
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5), 0 6px 12px rgba(0, 0, 0, 0.4);
+    color: #fff;
+    border-color: #1e3a8a;
+    background: radial-gradient(circle at 30% 25%, #93c5fd 0%, #3b82f6 42%, #1d4ed8 100%);
+    box-shadow:
+        0 0 0 4px rgba(96, 165, 250, 0.72),
+        0 0 20px 7px rgba(37, 99, 235, 0.62),
+        0 7px 14px rgba(30, 64, 175, 0.45);
     transform: translate(-50%, -50%) scale(1.15);
+    animation: selected-piece-glow 900ms ease-in-out infinite alternate;
+}
+
+@keyframes selected-piece-glow {
+    from {
+        box-shadow:
+            0 0 0 3px rgba(96, 165, 250, 0.62),
+            0 0 14px 5px rgba(37, 99, 235, 0.48),
+            0 7px 14px rgba(30, 64, 175, 0.4);
+    }
+    to {
+        box-shadow:
+            0 0 0 5px rgba(147, 197, 253, 0.82),
+            0 0 24px 9px rgba(37, 99, 235, 0.7),
+            0 8px 16px rgba(30, 64, 175, 0.5);
+    }
 }
 
 /* 移除disabled样式，不虚化对方棋子 */
@@ -298,6 +320,18 @@
     /* 移动端hover效果改为active */
     .chess-piece:hover {
         transform: translate(-50%, -50%);
+    }
+
+    .chess-piece.selected,
+    .chess-piece.selected:hover,
+    .chess-piece.selected:active {
+        transform: translate(-50%, -50%) scale(1.12);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chess-piece.selected {
+        animation: none;
     }
 }
 
