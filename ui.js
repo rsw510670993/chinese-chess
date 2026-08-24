@@ -1,6 +1,27 @@
 // UI 渲染模块
 
-// Modified from shibing624/chinese-chess-ai: optional game clock display support, 2026.
+// Modified from shibing624/chinese-chess-ai: optional clock and responsive board support, 2026.
+
+/**
+ * 根据容器可用宽度计算棋盘尺寸。
+ * 预留 12px 作为边框安全空间，确保棋盘外框不会超出容器。
+ */
+export function calculateBoardMetrics(availableWidth) {
+    const safeWidth = Number.isFinite(availableWidth) ? Math.max(0, availableWidth) : 0;
+    const padding = safeWidth < 520
+        ? Math.max(12, Math.min(24, Math.floor(safeWidth * 0.055)))
+        : 30;
+    const borderAllowance = 12;
+    const availableGridWidth = Math.max(0, safeWidth - 2 * padding - borderAllowance);
+    const cellSize = Math.max(12, Math.min(60, Math.floor(availableGridWidth / 8)));
+
+    return {
+        cellSize,
+        padding,
+        boardWidth: cellSize * 8 + padding * 2,
+        boardHeight: cellSize * 9 + padding * 2
+    };
+}
 
 /**
  * 棋盘渲染器
@@ -14,42 +35,48 @@ export class BoardRenderer {
         this.onPieceClick = null;
         this.onMoveClick = null;
         
-        // 根据屏幕大小动态设置棋盘尺寸
+        this.resizeFrame = null;
+
+        // 根据容器大小动态设置棋盘尺寸
         this.updateBoardSize();
         
         // 监听窗口大小变化
         window.addEventListener('resize', () => {
-            this.updateBoardSize();
-            this.render(this.currentBoard, this.currentChess);
+            if (this.resizeFrame) {
+                window.cancelAnimationFrame(this.resizeFrame);
+            }
+
+            this.resizeFrame = window.requestAnimationFrame(() => {
+                this.resizeFrame = null;
+                this.updateBoardSize();
+                this.initBoard();
+                if (this.currentBoard) {
+                    this.render(this.currentBoard, this.currentChess);
+                }
+            });
         });
         
         this.initBoard();
     }
     
     /**
-     * 根据屏幕大小更新棋盘尺寸
+     * 根据父容器可用宽度更新棋盘尺寸
      */
     updateBoardSize() {
-        const screenWidth = window.innerWidth;
-        if (screenWidth < 640) {
-            // 手机端
-            this.cellSize = 40;
-            this.padding = 20;
-            this.boardWidth = 360;
-            this.boardHeight = 420;
-        } else if (screenWidth < 1024) {
-            // 平板端
-            this.cellSize = 55;
-            this.padding = 20;
-            this.boardWidth = 480;
-            this.boardHeight = 560;
-        } else {
-            // PC端
-            this.cellSize = 60;
-            this.padding = 20;
-            this.boardWidth = 560;
-            this.boardHeight = 620;
-        }
+        const parent = this.container.parentElement;
+        const parentStyle = window.getComputedStyle(parent);
+        const horizontalPadding = parseFloat(parentStyle.paddingLeft || 0)
+            + parseFloat(parentStyle.paddingRight || 0);
+        const fallbackWidth = Math.max(0, window.innerWidth - 32);
+        const availableWidth = parent.clientWidth > 0
+            ? parent.clientWidth - horizontalPadding
+            : fallbackWidth;
+        const metrics = calculateBoardMetrics(availableWidth);
+
+        this.cellSize = metrics.cellSize;
+        this.padding = metrics.padding;
+        this.boardWidth = metrics.boardWidth;
+        this.boardHeight = metrics.boardHeight;
     }
 
     /**
@@ -69,6 +96,10 @@ export class BoardRenderer {
         const gridHeight = this.cellSize * 9;
         svg.setAttribute('width', gridWidth);
         svg.setAttribute('height', gridHeight);
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+        svg.style.left = this.padding + 'px';
+        svg.style.top = this.padding + 'px';
         
         // 绘制横线
         for (let i = 0; i < 10; i++) {
@@ -224,8 +255,8 @@ export class BoardRenderer {
         pieceEl.textContent = pieceNames[piece] || piece;
         
         // 设置棋子大小和字体大小
-        const pieceSize = Math.max(30, this.cellSize * 0.85);
-        const fontSize = Math.max(14, this.cellSize * 0.38);
+        const pieceSize = Math.max(18, this.cellSize * 0.85);
+        const fontSize = Math.max(12, this.cellSize * 0.38);
         pieceEl.style.width = pieceSize + 'px';
         pieceEl.style.height = pieceSize + 'px';
         pieceEl.style.fontSize = fontSize + 'px';
@@ -271,8 +302,8 @@ export class BoardRenderer {
             hintEl.classList.add('move-hint');
             
             const targetPiece = board[move.y][move.x];
-            const hintSize = Math.max(14, this.cellSize * 0.3);
-            const captureSize = Math.max(30, this.cellSize * 0.85);
+            const hintSize = Math.max(10, this.cellSize * 0.3);
+            const captureSize = Math.max(18, this.cellSize * 0.85);
             
             if (targetPiece) {
                 hintEl.classList.add('capture');
@@ -306,14 +337,22 @@ export class BoardRenderer {
      * 渲染最后一步移动 - 增强视觉效果
      */
     renderLastMove(move) {
+        const markerSize = Math.max(20, this.cellSize * 0.95);
+        const markerBorderWidth = Math.max(3, this.cellSize * 0.08);
         const fromEl = document.createElement('div');
         fromEl.classList.add('last-move-from');
+        fromEl.style.width = markerSize + 'px';
+        fromEl.style.height = markerSize + 'px';
+        fromEl.style.borderWidth = markerBorderWidth + 'px';
         fromEl.style.left = (this.padding + move.from.x * this.cellSize) + 'px';
         fromEl.style.top = (this.padding + move.from.y * this.cellSize) + 'px';
         this.container.appendChild(fromEl);
         
         const toEl = document.createElement('div');
         toEl.classList.add('last-move-to');
+        toEl.style.width = markerSize + 'px';
+        toEl.style.height = markerSize + 'px';
+        toEl.style.borderWidth = markerBorderWidth + 'px';
         toEl.style.left = (this.padding + move.to.x * this.cellSize) + 'px';
         toEl.style.top = (this.padding + move.to.y * this.cellSize) + 'px';
         this.container.appendChild(toEl);

@@ -1,3 +1,5 @@
+/* Modified from shibing624/chinese-chess-ai: responsive board containment and mobile interaction fixes, 2026. */
+
 /* 棋盘样式 */
 .chess-board {
     /* 尺寸由JavaScript动态设置 */
@@ -5,9 +7,13 @@
     border: 6px solid #8b4513;
     border-radius: 8px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    box-sizing: content-box;
     position: relative;
+    max-width: 100%;
+    overflow: hidden;
+    isolation: isolate;
     /* padding由JavaScript动态设置 */
-    touch-action: none; /* 禁用移动端的默认触摸行为 */
+    touch-action: manipulation;
 }
 
 @media (max-width: 640px) {
@@ -20,10 +26,9 @@
 /* 棋盘网格 */
 .board-grid {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 520px;
-    height: 580px;
+    z-index: 0;
+    display: block;
+    pointer-events: none;
 }
 
 .board-line {
@@ -56,6 +61,7 @@
     font-weight: bold;
     cursor: pointer;
     position: absolute;
+    z-index: 2;
     transform: translate(-50%, -50%);
     transition: all 0.2s ease;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
@@ -94,6 +100,7 @@
 /* 可移动位置标记 */
 .move-hint {
     position: absolute;
+    z-index: 3;
     width: 20px;
     height: 20px;
     background: rgba(34, 197, 94, 0.6);
@@ -135,6 +142,7 @@
 .last-move-from,
 .last-move-to {
     position: absolute;
+    z-index: 1;
     width: 64px;
     height: 64px;
     border: 5px solid rgba(234, 179, 8, 0.95);
@@ -159,6 +167,7 @@
 /* 河界标记 */
 .river-text {
     position: absolute;
+    z-index: 0;
     font-size: 32px;
     font-weight: bold;
     color: #8b4513;
