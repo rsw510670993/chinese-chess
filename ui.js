@@ -1,5 +1,28 @@
 // UI 渲染模块
 
+// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, inline status, and visual move suggestions, 2026.
+
+/**
+ * 根据容器可用宽度计算棋盘尺寸。
+ * 预留 12px 作为边框安全空间，确保棋盘外框不会超出容器。
+ */
+export function calculateBoardMetrics(availableWidth) {
+    const safeWidth = Number.isFinite(availableWidth) ? Math.max(0, availableWidth) : 0;
+    const padding = safeWidth < 520
+        ? Math.max(12, Math.min(24, Math.floor(safeWidth * 0.055)))
+        : 30;
+    const borderAllowance = 12;
+    const availableGridWidth = Math.max(0, safeWidth - 2 * padding - borderAllowance);
+    const cellSize = Math.max(12, Math.min(60, Math.floor(availableGridWidth / 8)));
+
+    return {
+        cellSize,
+        padding,
+        boardWidth: cellSize * 8 + padding * 2,
+        boardHeight: cellSize * 9 + padding * 2
+    };
+}
+
 /**
  * 棋盘渲染器
  */
@@ -9,45 +32,52 @@ export class BoardRenderer {
         this.selectedPiece = null;
         this.legalMoves = [];
         this.lastMove = null;
+        this.suggestedMove = null;
         this.onPieceClick = null;
         this.onMoveClick = null;
         
-        // 根据屏幕大小动态设置棋盘尺寸
+        this.resizeFrame = null;
+
+        // 根据容器大小动态设置棋盘尺寸
         this.updateBoardSize();
         
         // 监听窗口大小变化
         window.addEventListener('resize', () => {
-            this.updateBoardSize();
-            this.render(this.currentBoard, this.currentChess);
+            if (this.resizeFrame) {
+                window.cancelAnimationFrame(this.resizeFrame);
+            }
+
+            this.resizeFrame = window.requestAnimationFrame(() => {
+                this.resizeFrame = null;
+                this.updateBoardSize();
+                this.initBoard();
+                if (this.currentBoard) {
+                    this.render(this.currentBoard, this.currentChess);
+                }
+            });
         });
         
         this.initBoard();
     }
     
     /**
-     * 根据屏幕大小更新棋盘尺寸
+     * 根据父容器可用宽度更新棋盘尺寸
      */
     updateBoardSize() {
-        const screenWidth = window.innerWidth;
-        if (screenWidth < 640) {
-            // 手机端
-            this.cellSize = 40;
-            this.padding = 20;
-            this.boardWidth = 360;
-            this.boardHeight = 420;
-        } else if (screenWidth < 1024) {
-            // 平板端
-            this.cellSize = 55;
-            this.padding = 20;
-            this.boardWidth = 480;
-            this.boardHeight = 560;
-        } else {
-            // PC端
-            this.cellSize = 60;
-            this.padding = 20;
-            this.boardWidth = 560;
-            this.boardHeight = 620;
-        }
+        const parent = this.container.parentElement;
+        const parentStyle = window.getComputedStyle(parent);
+        const horizontalPadding = parseFloat(parentStyle.paddingLeft || 0)
+            + parseFloat(parentStyle.paddingRight || 0);
+        const fallbackWidth = Math.max(0, window.innerWidth - 32);
+        const availableWidth = parent.clientWidth > 0
+            ? parent.clientWidth - horizontalPadding
+            : fallbackWidth;
+        const metrics = calculateBoardMetrics(availableWidth);
+
+        this.cellSize = metrics.cellSize;
+        this.padding = metrics.padding;
+        this.boardWidth = metrics.boardWidth;
+        this.boardHeight = metrics.boardHeight;
     }
 
     /**
@@ -67,6 +97,10 @@ export class BoardRenderer {
         const gridHeight = this.cellSize * 9;
         svg.setAttribute('width', gridWidth);
         svg.setAttribute('height', gridHeight);
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+        svg.style.left = this.padding + 'px';
+        svg.style.top = this.padding + 'px';
         
         // 绘制横线
         for (let i = 0; i < 10; i++) {
@@ -174,7 +208,7 @@ export class BoardRenderer {
         this.currentChess = chess;
         
         // 清除旧的棋子和标记
-        const oldPieces = this.container.querySelectorAll('.chess-piece, .move-hint, .last-move-from, .last-move-to');
+        const oldPieces = this.container.querySelectorAll('.chess-piece, .move-hint, .last-move-from, .last-move-to, .suggestion-arrow-layer');
         oldPieces.forEach(el => el.remove());
         
         // 渲染最后一步移动标记
@@ -195,6 +229,11 @@ export class BoardRenderer {
         // 渲染可移动位置
         if (this.selectedPiece && this.legalMoves.length > 0) {
             this.renderLegalMoves(this.legalMoves, board);
+        }
+
+        // 推荐走法使用独立箭头和目标圆环，避免与普通合法落点混淆
+        if (this.suggestedMove) {
+            this.renderSuggestion(this.suggestedMove);
         }
     }
 
@@ -222,8 +261,8 @@ export class BoardRenderer {
         pieceEl.textContent = pieceNames[piece] || piece;
         
         // 设置棋子大小和字体大小
-        const pieceSize = Math.max(30, this.cellSize * 0.85);
-        const fontSize = Math.max(14, this.cellSize * 0.38);
+        const pieceSize = Math.max(18, this.cellSize * 0.85);
+        const fontSize = Math.max(12, this.cellSize * 0.38);
         pieceEl.style.width = pieceSize + 'px';
         pieceEl.style.height = pieceSize + 'px';
         pieceEl.style.fontSize = fontSize + 'px';
@@ -269,8 +308,8 @@ export class BoardRenderer {
             hintEl.classList.add('move-hint');
             
             const targetPiece = board[move.y][move.x];
-            const hintSize = Math.max(14, this.cellSize * 0.3);
-            const captureSize = Math.max(30, this.cellSize * 0.85);
+            const hintSize = Math.max(10, this.cellSize * 0.3);
+            const captureSize = Math.max(18, this.cellSize * 0.85);
             
             if (targetPiece) {
                 hintEl.classList.add('capture');
@@ -304,23 +343,102 @@ export class BoardRenderer {
      * 渲染最后一步移动 - 增强视觉效果
      */
     renderLastMove(move) {
+        const markerSize = Math.max(20, this.cellSize * 0.95);
+        const markerBorderWidth = Math.max(3, this.cellSize * 0.08);
         const fromEl = document.createElement('div');
         fromEl.classList.add('last-move-from');
+        fromEl.style.width = markerSize + 'px';
+        fromEl.style.height = markerSize + 'px';
+        fromEl.style.borderWidth = markerBorderWidth + 'px';
         fromEl.style.left = (this.padding + move.from.x * this.cellSize) + 'px';
         fromEl.style.top = (this.padding + move.from.y * this.cellSize) + 'px';
         this.container.appendChild(fromEl);
         
         const toEl = document.createElement('div');
         toEl.classList.add('last-move-to');
+        toEl.style.width = markerSize + 'px';
+        toEl.style.height = markerSize + 'px';
+        toEl.style.borderWidth = markerBorderWidth + 'px';
         toEl.style.left = (this.padding + move.to.x * this.cellSize) + 'px';
         toEl.style.top = (this.padding + move.to.y * this.cellSize) + 'px';
         this.container.appendChild(toEl);
     }
 
     /**
+     * 绘制推荐走法箭头和目标圆环
+     */
+    renderSuggestion(move) {
+        const startX = this.padding + move.from.x * this.cellSize;
+        const startY = this.padding + move.from.y * this.cellSize;
+        const targetX = this.padding + move.to.x * this.cellSize;
+        const targetY = this.padding + move.to.y * this.cellSize;
+        const deltaX = targetX - startX;
+        const deltaY = targetY - startY;
+        const distance = Math.hypot(deltaX, deltaY);
+
+        if (distance === 0) return;
+
+        const unitX = deltaX / distance;
+        const unitY = deltaY / distance;
+        const startOffset = Math.min(this.cellSize * 0.38, distance * 0.2);
+        const endOffset = Math.min(this.cellSize * 0.42, distance * 0.25);
+        const arrowStartX = startX + unitX * startOffset;
+        const arrowStartY = startY + unitY * startOffset;
+        const arrowEndX = targetX - unitX * endOffset;
+        const arrowEndY = targetY - unitY * endOffset;
+        const markerId = 'suggestion-arrowhead';
+        const arrowheadSize = Math.max(10, this.cellSize * 0.28);
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('suggestion-arrow-layer');
+        svg.setAttribute('width', this.boardWidth);
+        svg.setAttribute('height', this.boardHeight);
+        svg.setAttribute('viewBox', `0 0 ${this.boardWidth} ${this.boardHeight}`);
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', markerId);
+        marker.setAttribute('markerWidth', arrowheadSize);
+        marker.setAttribute('markerHeight', arrowheadSize);
+        marker.setAttribute('refX', arrowheadSize - 1);
+        marker.setAttribute('refY', arrowheadSize / 2);
+        marker.setAttribute('orient', 'auto');
+        marker.setAttribute('markerUnits', 'userSpaceOnUse');
+        const arrowhead = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrowhead.setAttribute('d', `M 0 0 L ${arrowheadSize} ${arrowheadSize / 2} L 0 ${arrowheadSize} z`);
+        arrowhead.classList.add('suggestion-arrowhead');
+        marker.appendChild(arrowhead);
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.classList.add('suggestion-arrow-line');
+        line.setAttribute('x1', arrowStartX);
+        line.setAttribute('y1', arrowStartY);
+        line.setAttribute('x2', arrowEndX);
+        line.setAttribute('y2', arrowEndY);
+        line.setAttribute('stroke-width', Math.max(3, this.cellSize * 0.08));
+        line.setAttribute('marker-end', `url(#${markerId})`);
+        svg.appendChild(line);
+
+        const target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        target.classList.add('suggestion-target');
+        target.setAttribute('cx', targetX);
+        target.setAttribute('cy', targetY);
+        target.setAttribute('r', Math.max(10, this.cellSize * 0.34));
+        target.setAttribute('stroke-width', Math.max(3, this.cellSize * 0.07));
+        svg.appendChild(target);
+
+        this.container.appendChild(svg);
+    }
+
+    /**
      * 设置选中的棋子
      */
     setSelectedPiece(x, y) {
+        this.suggestedMove = null;
         this.selectedPiece = x !== null ? {x, y} : null;
     }
 
@@ -329,6 +447,13 @@ export class BoardRenderer {
      */
     setLegalMoves(moves) {
         this.legalMoves = moves;
+    }
+
+    /**
+     * 设置推荐走法
+     */
+    setSuggestedMove(move) {
+        this.suggestedMove = move;
     }
 
     /**
@@ -344,6 +469,7 @@ export class BoardRenderer {
     clearSelection() {
         this.selectedPiece = null;
         this.legalMoves = [];
+        this.suggestedMove = null;
     }
 }
 
@@ -356,7 +482,8 @@ export class GameInfoDisplay {
         this.moveCountEl = document.getElementById('moveCount');
         this.gameStatusEl = document.getElementById('gameStatus');
         this.moveHistoryEl = document.getElementById('moveHistory');
-        this.aiThinkingEl = document.getElementById('aiThinking');
+        this.redPlayerLabelEl = document.getElementById('redPlayerLabel');
+        this.blackPlayerLabelEl = document.getElementById('blackPlayerLabel');
         this.redTimerEl = document.getElementById('redTimer');
         this.blackTimerEl = document.getElementById('blackTimer');
     }
@@ -413,10 +540,14 @@ export class GameInfoDisplay {
     }
 
     /**
-     * 更新 AI 思考
+     * 更新棋盘旁的玩家状态
      */
-    updateAIThinking(text) {
-        this.aiThinkingEl.textContent = text;
+    setPlayerStatus(player, status = null) {
+        const isRed = player === 'red';
+        const label = isRed ? this.redPlayerLabelEl : this.blackPlayerLabelEl;
+        const side = isRed ? '红方' : '黑方';
+        const role = status || (isRed ? '玩家' : 'AI');
+        label.textContent = `${side}（${role}）`;
     }
 
     /**
@@ -432,6 +563,14 @@ export class GameInfoDisplay {
         } else {
             this.blackTimerEl.textContent = timeText;
         }
+    }
+
+    /**
+     * 显示或隐藏双方计时器
+     */
+    setTimerVisibility(visible) {
+        this.redTimerEl.classList.toggle('hidden', !visible);
+        this.blackTimerEl.classList.toggle('hidden', !visible);
     }
 }
 

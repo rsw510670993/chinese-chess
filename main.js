@@ -1,3 +1,4 @@
+// Modified from shibing624/chinese-chess-ai: difficulty controls, optional clock, inline player status, and timed move hints, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
@@ -18,9 +19,12 @@ class GameController {
         this.audioManager = new AudioManager();
         
         this.isAIThinking = false;
+        this.isHintSearching = false;
         this.redTime = 900; // 15分钟
         this.blackTime = 900;
+        this.timerEnabled = false;
         this.timerInterval = null;
+        this.hintCountdownInterval = null;
         
         this.init();
     }
@@ -38,6 +42,14 @@ class GameController {
         document.getElementById('undoBtn').addEventListener('click', () => this.undoMove());
         document.getElementById('hintBtn').addEventListener('click', () => this.showHint());
         document.getElementById('soundBtn').addEventListener('click', () => this.toggleSound());
+        document.getElementById('timerToggle').addEventListener('change', (event) => {
+            this.setTimerEnabled(event.target.checked);
+        });
+        const difficultySelect = document.getElementById('difficultySelect');
+        this.ai.setDifficulty(difficultySelect.value);
+        difficultySelect.addEventListener('change', (event) => {
+            this.ai.setDifficulty(event.target.value);
+        });
         
         // 设置游戏结束弹窗
         this.gameOverModal.onClose(() => {
@@ -47,14 +59,16 @@ class GameController {
         
         // 初始渲染
         this.updateDisplay();
-        this.startTimer();
+        this.infoDisplay.setTimerVisibility(this.timerEnabled);
     }
 
     /**
      * 处理棋子点击
      */
     handlePieceClick(x, y, piece) {
-        if (this.chess.gameOver || this.isAIThinking) return;
+        if (this.chess.gameOver || this.isAIThinking || this.isHintSearching) return;
+
+        this.cancelHintCountdown();
         
         // 如果不是当前玩家的棋子，检查是否可以吃子
         if (!this.chess.isCurrentPlayerPiece(piece)) {
@@ -89,7 +103,9 @@ class GameController {
      * 处理移动点击
      */
     async handleMoveClick(toX, toY) {
-        if (!this.renderer.selectedPiece || this.chess.gameOver || this.isAIThinking) return;
+        if (!this.renderer.selectedPiece || this.chess.gameOver || this.isAIThinking || this.isHintSearching) return;
+
+        this.cancelHintCountdown();
         
         const fromX = this.renderer.selectedPiece.x;
         const fromY = this.renderer.selectedPiece.y;
@@ -130,21 +146,16 @@ class GameController {
      */
     async aiMove() {
         this.isAIThinking = true;
-        this.infoDisplay.updateAIThinking('AI正在思考最佳走法...');
+        this.infoDisplay.setPlayerStatus('black', '处理中');
         
         try {
             // 获取 AI 的最佳移动
             const aiMove = await this.ai.getBestMove();
             
             if (!aiMove) {
-                this.infoDisplay.updateAIThinking('AI 无法移动，游戏结束');
                 this.handleGameOver();
                 return;
             }
-            
-            // 生成思考过程
-            const thinking = this.ai.generateThinkingProcess(aiMove);
-            this.infoDisplay.updateAIThinking(`AI分析：${thinking}`);
             
             // 执行 AI 移动
             const moveResult = this.chess.makeMove(
@@ -176,9 +187,9 @@ class GameController {
             
         } catch (error) {
             console.error('AI 移动错误:', error);
-            this.infoDisplay.updateAIThinking('AI思考出错，请重新开始游戏');
         } finally {
             this.isAIThinking = false;
+            this.infoDisplay.setPlayerStatus('black');
         }
     }
 
@@ -202,12 +213,15 @@ class GameController {
      */
     newGame() {
         this.audioManager.playNewGameSound();
+
+        this.cancelHintCountdown();
         
         this.chess.reset();
         this.renderer.clearSelection();
         this.renderer.setLastMove(null);
         this.infoDisplay.clearMoveHistory();
-        this.infoDisplay.updateAIThinking('点击棋子开始走棋...');
+        this.infoDisplay.setPlayerStatus('black');
+        this.infoDisplay.setPlayerStatus('red');
         
         this.redTime = 900;
         this.blackTime = 900;
@@ -217,7 +231,11 @@ class GameController {
         this.isAIThinking = false;
         
         this.updateDisplay();
-        this.startTimer();
+        if (this.timerEnabled) {
+            this.startTimer();
+        } else {
+            this.stopTimer();
+        }
     }
 
     /**
@@ -237,6 +255,8 @@ class GameController {
             console.log('悔棋失败');
             return;
         }
+
+        this.cancelHintCountdown();
         
         // 播放悔棋音效
         this.audioManager.playUndoSound();
@@ -273,51 +293,75 @@ class GameController {
      * 显示提示
      */
     async showHint() {
-        if (this.chess.gameOver || this.chess.currentPlayer !== 'red' || this.isAIThinking) return;
-        
-        this.infoDisplay.updateAIThinking('AI正在分析最佳走法...');
+        if (this.chess.gameOver || this.chess.currentPlayer !== 'red' || this.isAIThinking || this.isHintSearching) return;
+
+        this.cancelHintCountdown();
+        this.renderer.clearSelection();
+        this.updateDisplay();
+        this.isHintSearching = true;
+        this.infoDisplay.setPlayerStatus('red', '检索提示中');
         
         try {
             // 获取AI建议
             const hintMove = await this.ai.getBestMove();
             
             if (hintMove && hintMove.from && hintMove.to) {
-                const thinking = this.ai.generateThinkingProcess(hintMove);
-                
-                this.infoDisplay.updateAIThinking(`提示：${thinking}`);
-                
-                // 高亮提示的棋子和可移动位置
+                // 选中推荐棋子，使玩家可以直接按提示落子
                 this.renderer.setSelectedPiece(hintMove.from.x, hintMove.from.y);
-                const legalMoves = this.chess.getLegalMoves(hintMove.from.x, hintMove.from.y);
-                this.renderer.setLegalMoves(legalMoves);
+                this.renderer.setLegalMoves(this.chess.getLegalMoves(hintMove.from.x, hintMove.from.y));
+                this.renderer.setSuggestedMove(hintMove);
                 this.updateDisplay();
-                
-                // 3秒后清除高亮，但保持正常的游戏状态
-                setTimeout(() => {
-                    // 只有当前仍然是提示状态时才清除（避免用户已经选择了其他棋子）
-                    if (this.renderer.selectedPiece && 
-                        this.renderer.selectedPiece.x === hintMove.from.x && 
-                        this.renderer.selectedPiece.y === hintMove.from.y) {
-                        this.renderer.clearSelection();
-                        this.updateDisplay();
-                    }
-                    // 提示功能是在红方回合调用的，所以结束后应该仍然是红方回合
-                    this.infoDisplay.updateAIThinking('点击棋子开始走棋...');
-                }, 3000);
-            } else {
-                this.infoDisplay.updateAIThinking('无法生成提示，请重试');
-                // 2秒后恢复正常状态
-                setTimeout(() => {
-                    this.infoDisplay.updateAIThinking('点击棋子开始走棋...');
-                }, 2000);
+                this.startHintCountdown(hintMove, 3);
             }
         } catch (error) {
             console.error('提示错误:', error);
-            this.infoDisplay.updateAIThinking('提示功能暂时不可用');
-            // 2秒后恢复正常状态
-            setTimeout(() => {
-                this.infoDisplay.updateAIThinking('点击棋子开始走棋...');
-            }, 2000);
+        } finally {
+            this.isHintSearching = false;
+            this.infoDisplay.setPlayerStatus('red');
+        }
+    }
+
+    /**
+     * 启动提示自动消失倒计时
+     */
+    startHintCountdown(hintMove, durationSeconds) {
+        this.cancelHintCountdown();
+
+        const countdownEl = document.getElementById('hintCountdown');
+        const expiresAt = Date.now() + durationSeconds * 1000;
+        const updateCountdown = () => {
+            const remaining = Math.ceil((expiresAt - Date.now()) / 1000);
+
+            if (remaining <= 0) {
+                this.cancelHintCountdown();
+                if (this.renderer.suggestedMove === hintMove) {
+                    this.renderer.clearSelection();
+                    this.updateDisplay();
+                }
+                return;
+            }
+
+            countdownEl.textContent = `${remaining}秒`;
+            countdownEl.classList.remove('hidden');
+        };
+
+        updateCountdown();
+        this.hintCountdownInterval = setInterval(updateCountdown, 200);
+    }
+
+    /**
+     * 停止提示倒计时，但保留当前棋盘状态供调用方处理
+     */
+    cancelHintCountdown() {
+        if (this.hintCountdownInterval) {
+            clearInterval(this.hintCountdownInterval);
+            this.hintCountdownInterval = null;
+        }
+
+        const countdownEl = document.getElementById('hintCountdown');
+        if (countdownEl) {
+            countdownEl.textContent = '';
+            countdownEl.classList.add('hidden');
         }
     }
 
@@ -385,13 +429,31 @@ class GameController {
     }
 
     /**
+     * 开启或关闭对局计时
+     */
+    setTimerEnabled(enabled) {
+        this.timerEnabled = enabled;
+        this.infoDisplay.setTimerVisibility(enabled);
+
+        if (enabled && !this.chess.gameOver) {
+            this.startTimer();
+        } else {
+            this.stopTimer();
+        }
+    }
+
+    /**
      * 启动计时器
      */
     startTimer() {
         this.stopTimer();
+
+        if (!this.timerEnabled || this.chess.gameOver) {
+            return;
+        }
         
         this.timerInterval = setInterval(() => {
-            if (this.chess.gameOver) {
+            if (!this.timerEnabled || this.chess.gameOver) {
                 this.stopTimer();
                 return;
             }

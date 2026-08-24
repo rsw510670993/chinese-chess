@@ -1,35 +1,27 @@
 <!DOCTYPE html>
+<!-- Modified from shibing624/chinese-chess-ai: mobile layout, difficulty controls, player status, optional clock, and hint countdown, 2026. -->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中国象棋AI对弈</title>
+    <title>中国象棋</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 min-h-screen">
     <div class="container mx-auto px-4 py-6">
-        <!-- 标题区域 --优化视觉效果 -->
-        <div class="text-center mb-3 md:mb-4 flex-shrink-0">
-            <h1 class="text-2xl sm:text-3xl lg:text-5xl font-bold bg-gradient-to-r from-red-700 via-red-600 to-orange-600 bg-clip-text text-transparent mb-1 md:mb-2 flex items-center justify-center gap-2 md:gap-3 drop-shadow-lg">
-                <i class="fas fa-chess text-red-700 text-xl sm:text-2xl lg:text-4xl"></i>
-                <span>中国象棋AI对弈</span>
-                <i class="fas fa-robot text-orange-600 text-xl sm:text-2xl lg:text-4xl"></i>
-            </h1>
-            <p class="text-gray-700 text-sm md:text-base font-medium">基于Alpha-Beta剪枝的智能象棋对弈</p>
-        </div>
         <!-- 主要内容区域 -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
             <!-- 左侧：棋盘区域 -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-2xl shadow-2xl p-3 sm:p-4 md:p-6">
+            <div class="min-w-0 lg:col-span-2">
+                <div class="overflow-hidden bg-white rounded-2xl shadow-2xl p-3 sm:p-4 md:p-6">
                     <div class="flex justify-between items-center mb-2 sm:mb-3 md:mb-4">
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div class="w-3 h-3 sm:w-4 sm:h-4 bg-black rounded-full"></div>
-                            <span class="font-bold text-sm sm:text-base md:text-lg">黑方（AI）</span>
+                            <span id="blackPlayerLabel" class="font-bold text-sm sm:text-base md:text-lg" aria-live="polite">黑方（AI）</span>
                         </div>
-                        <div id="blackTimer" class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-gray-700">15:00</div>
+                        <div id="blackTimer" class="hidden text-lg sm:text-xl md:text-2xl font-mono font-bold text-gray-700">15:00</div>
                     </div>
 
                     <!-- 棋盘 -->
@@ -38,9 +30,9 @@
                     <div class="flex justify-between items-center mt-2 sm:mt-3 md:mt-4">
                         <div class="flex items-center gap-2 sm:gap-3">
                             <div class="w-3 h-3 sm:w-4 sm:h-4 bg-red-600 rounded-full"></div>
-                            <span class="font-bold text-sm sm:text-base md:text-lg">红方（玩家）</span>
+                            <span id="redPlayerLabel" class="font-bold text-sm sm:text-base md:text-lg" aria-live="polite">红方（玩家）</span>
                         </div>
-                        <div id="redTimer" class="text-lg sm:text-xl md:text-2xl font-mono font-bold text-red-600">15:00</div>
+                        <div id="redTimer" class="hidden text-lg sm:text-xl md:text-2xl font-mono font-bold text-red-600">15:00</div>
                     </div>
 
                     <!-- 控制按钮 -->
@@ -52,7 +44,7 @@
                             <i class="fas fa-undo mr-1 sm:mr-2"></i>悔棋
                         </button>
                         <button id="hintBtn" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 active:from-green-800 active:to-green-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-2 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg text-xs sm:text-sm md:text-base">
-                            <i class="fas fa-lightbulb mr-1 sm:mr-2"></i>提示
+                            <i class="fas fa-lightbulb mr-1 sm:mr-2"></i>提示<span id="hintCountdown" class="hidden ml-1 tabular-nums" aria-live="polite"></span>
                         </button>
                         <button id="soundBtn" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 active:from-purple-800 active:to-purple-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg">
                             <i class="fas fa-volume-up text-sm sm:text-base"></i>
@@ -78,6 +70,22 @@
                             <span class="text-gray-600">回合数</span>
                             <span id="moveCount" class="font-bold text-gray-800">0</span>
                         </div>
+                        <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-gray-50 rounded-lg text-sm sm:text-base">
+                            <span class="text-gray-600">难度</span>
+                            <select id="difficultySelect" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200" aria-label="选择对局难度">
+                                <option value="fast">极速</option>
+                                <option value="standard" selected>标准</option>
+                                <option value="hard">困难</option>
+                                <option value="master">大师</option>
+                            </select>
+                        </label>
+                        <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-amber-50 rounded-lg text-sm sm:text-base cursor-pointer">
+                            <span>
+                                <span class="block font-medium text-gray-700">对局计时</span>
+                                <span class="block text-xs text-gray-500">每方 15 分钟，默认关闭</span>
+                            </span>
+                            <input id="timerToggle" type="checkbox" class="w-5 h-5 accent-red-600" aria-label="启用每方十五分钟对局计时">
+                        </label>
                         <div class="p-2 sm:p-2.5 md:p-3 bg-blue-50 rounded-lg">
                             <div class="text-xs sm:text-sm text-gray-600 mb-1">游戏状态</div>
                             <div id="gameStatus" class="font-bold text-blue-700 text-sm sm:text-base">进行中</div>
@@ -94,19 +102,6 @@
                     <div id="moveHistory" class="space-y-1 sm:space-y-2 max-h-48 sm:max-h-56 md:max-h-64 overflow-y-auto text-xs sm:text-sm"></div>
                 </div>
 
-                <!-- AI 思考 -->
-                <div class="bg-white rounded-xl md:rounded-2xl shadow-xl p-3 sm:p-4 md:p-6">
-                    <h3 class="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-2 sm:mb-3 md:mb-4 flex items-center gap-2">
-                        <i class="fas fa-brain text-pink-600"></i>
-                        AI 思考
-                    </h3>
-                    <div id="aiThinking" class="text-gray-600 text-xs sm:text-sm leading-relaxed">
-                        点击棋子开始走棋...
-                    </div>
-                    <div class="mt-2 sm:mt-3 text-xs text-gray-500 italic">
-                        💡 AI使用Alpha-Beta剪枝算法
-                    </div>
-                </div>
             </div>
         </div>
 

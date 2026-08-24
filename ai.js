@@ -1,4 +1,41 @@
+// Modified from shibing624/chinese-chess-ai: selectable difficulty and varied near-best move selection, 2026.
 // AI 对弈模块 - 极小化极大算法 + Alpha-Beta剪枝
+
+export const DIFFICULTY_LEVELS = Object.freeze({
+    fast: 1,
+    standard: 2,
+    hard: 4,
+    master: 6
+});
+
+const RANDOM_CANDIDATE_LIMIT = 5;
+const MAX_RANDOM_SCORE_GAP = 120;
+
+/**
+ * 从评分接近最优的前五个候选中随机选择走法。
+ * 120 分低于一个兵的基础价值，避免为了随机性选择明显亏子的走法。
+ */
+export function selectVariedMove(scoredMoves, random = Math.random) {
+    if (!Array.isArray(scoredMoves) || scoredMoves.length === 0) {
+        return null;
+    }
+
+    const topCandidates = scoredMoves
+        .slice()
+        .sort((a, b) => b.score - a.score)
+        .slice(0, RANDOM_CANDIDATE_LIMIT);
+    const bestScore = topCandidates[0].score;
+    const nearBestCandidates = topCandidates.filter(
+        (candidate) => bestScore - candidate.score <= MAX_RANDOM_SCORE_GAP
+    );
+    const randomValue = Number(random());
+    const normalizedRandom = Number.isFinite(randomValue)
+        ? Math.min(Math.max(randomValue, 0), 0.999999999999)
+        : 0;
+    const selectedIndex = Math.floor(normalizedRandom * nearBestCandidates.length);
+
+    return nearBestCandidates[selectedIndex].move;
+}
 
 /**
  * 象棋 AI 类 - 使用极小化极大算法 + Alpha-Beta剪枝
@@ -6,14 +43,15 @@
  * 算法说明：
  * 1. 极小化极大算法：假设对手总是选择对自己最有利的走法
  * 2. Alpha-Beta剪枝：通过剪枝减少搜索节点，提高效率
- * 3. 搜索深度：默认4层（可调整到6层）
+ * 3. 搜索深度：由界面难度选项控制
  * 4. 评估函数：综合考虑棋子价值、位置价值、机动性、控制力等因素
  */
 export class ChessAI {
     constructor(chess) {
         this.chess = chess;
-        this.maxDepth = 5; // 搜索深度（4-6层效果较好）
-        this.thinkingTime = 1000; // 思考时间（毫秒）
+        this.difficulty = 'standard';
+        this.maxDepth = DIFFICULTY_LEVELS[this.difficulty];
+        this.thinkingTime = 0; // 仅让出一次事件循环，确保处理状态先完成绘制
         this.nodesSearched = 0; // 搜索节点数统计
         this.pruneCount = 0; // 剪枝次数统计
         
@@ -128,6 +166,19 @@ export class ChessAI {
     }
 
     /**
+     * 设置检索难度
+     */
+    setDifficulty(difficulty) {
+        if (!Object.prototype.hasOwnProperty.call(DIFFICULTY_LEVELS, difficulty)) {
+            return false;
+        }
+
+        this.difficulty = difficulty;
+        this.maxDepth = DIFFICULTY_LEVELS[difficulty];
+        return true;
+    }
+
+    /**
      * AI 思考并返回最佳移动
      * 主入口函数
      */
@@ -170,10 +221,7 @@ export class ChessAI {
             return null;
         }
         
-        let bestMove = null;
-        let bestScore = -Infinity;
-        let alpha = -Infinity;
-        const beta = Infinity;
+        const scoredMoves = [];
         
         // 对移动进行初步排序，提高剪枝效率
         const sortedMoves = this.sortMoves(allMoves);
@@ -190,27 +238,24 @@ export class ChessAI {
                 move.to.x, move.to.y
             );
             
-            // 递归搜索（对手视角，所以取负值）
-            const score = -this.alphaBeta(this.maxDepth - 1, -beta, -alpha);
+            // 使用完整窗口取得可比较的根节点评分，供候选走法排名。
+            const score = -this.alphaBeta(this.maxDepth - 1, -Infinity, Infinity);
             
             // 撤销移动（使用单步撤销）
             this.chess.undoSingleMove(moveResult);
             
             console.log(`走法 ${i+1}: 评分 ${score}`);
-            
-            // 更新最佳走法
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = move;
-            }
-            
-            // 更新 alpha 值
-            alpha = Math.max(alpha, score);
+            scoredMoves.push({move, score});
         }
-        
-        console.log('最佳走法评分:', bestScore);
-        
-        return bestMove;
+
+        const rankedMoves = scoredMoves.slice().sort((a, b) => b.score - a.score);
+        const selectedMove = selectVariedMove(rankedMoves);
+        const selectedRank = rankedMoves.findIndex((candidate) => candidate.move === selectedMove) + 1;
+
+        console.log('最佳走法评分:', rankedMoves[0].score);
+        console.log('本次选择排名:', selectedRank);
+
+        return selectedMove;
     }
 
     /**
