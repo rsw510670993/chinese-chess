@@ -307,7 +307,7 @@ class GameController {
         
         try {
             // 获取AI建议
-            const hintMove = await this.ai.getBestMove();
+            const hintMove = await this.ai.getBestMove({purpose: 'hint'});
             
             if (hintMove && hintMove.from && hintMove.to) {
                 // 选中推荐棋子，使玩家可以直接按提示落子

@@ -4,7 +4,7 @@ import { ChessAI } from './ai.js';
 import { ChineseChess } from './chess.js';
 
 self.onmessage = async (event) => {
-    const {id, difficulty, state} = event.data;
+    const {id, difficulty, searchOptions, state} = event.data;
 
     try {
         const chess = new ChineseChess();
@@ -16,7 +16,7 @@ self.onmessage = async (event) => {
 
         const ai = new ChessAI(chess);
         ai.setDifficulty(difficulty);
-        const move = await ai.getBestMove();
+        const move = await ai.getBestMove(searchOptions);
 
         self.postMessage({
             id,

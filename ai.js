@@ -5,6 +5,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
     fast: Object.freeze({
         maxDepth: 1,
         timeLimitMs: 180,
+        hintTimeLimitMs: 650,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 220,
         randomTemperature: 150
@@ -12,6 +13,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
     standard: Object.freeze({
         maxDepth: 2,
         timeLimitMs: 650,
+        hintTimeLimitMs: 1600,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 160,
         randomTemperature: 105
@@ -19,6 +21,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
     hard: Object.freeze({
         maxDepth: 4,
         timeLimitMs: 2200,
+        hintTimeLimitMs: 7000,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 120,
         randomTemperature: 75
@@ -26,6 +29,7 @@ export const DIFFICULTY_CONFIGS = Object.freeze({
     master: Object.freeze({
         maxDepth: 6,
         timeLimitMs: 5000,
+        hintTimeLimitMs: 10000,
         randomCandidateLimit: 5,
         maxRandomScoreGap: 90,
         randomTemperature: 50
@@ -37,6 +41,31 @@ export const DIFFICULTY_LEVELS = Object.freeze(
         Object.entries(DIFFICULTY_CONFIGS).map(([name, config]) => [name, config.maxDepth])
     )
 );
+
+/**
+ * 提示比同档对手多搜索一层，并缩小随机范围，使建议整体更可靠。
+ */
+export function getSearchProfile(difficulty, purpose = 'move') {
+    const config = DIFFICULTY_CONFIGS[difficulty] ?? DIFFICULTY_CONFIGS.standard;
+
+    if (purpose !== 'hint') {
+        return {
+            maxDepth: config.maxDepth,
+            timeLimitMs: config.timeLimitMs,
+            randomCandidateLimit: config.randomCandidateLimit,
+            maxRandomScoreGap: config.maxRandomScoreGap,
+            randomTemperature: config.randomTemperature
+        };
+    }
+
+    return {
+        maxDepth: config.maxDepth + 1,
+        timeLimitMs: config.hintTimeLimitMs,
+        randomCandidateLimit: Math.min(3, config.randomCandidateLimit),
+        maxRandomScoreGap: Math.round(config.maxRandomScoreGap * 0.75),
+        randomTemperature: Math.max(30, Math.round(config.randomTemperature * 0.65))
+    };
+}
 
 const DEEP_SEARCH_CANDIDATE_LIMIT = 8;
 const DEEP_SEARCH_SCORE_GAP = 500;
@@ -247,6 +276,11 @@ export class ChessAI {
         const config = DIFFICULTY_CONFIGS[this.difficulty];
         const maxDepth = options.maxDepth ?? config.maxDepth;
         const timeLimitMs = options.timeLimitMs ?? config.timeLimitMs;
+        const variation = {
+            candidateLimit: options.randomCandidateLimit ?? config.randomCandidateLimit,
+            maxScoreGap: options.maxRandomScoreGap ?? config.maxRandomScoreGap,
+            temperature: options.randomTemperature ?? config.randomTemperature
+        };
 
         console.log('最大搜索深度:', maxDepth);
         console.log('思考时间上限:', timeLimitMs, 'ms');
@@ -256,7 +290,8 @@ export class ChessAI {
         const bestMove = this.iterativeDeepeningSearch({
             maxDepth,
             timeLimitMs,
-            random: options.random ?? Math.random
+            random: options.random ?? Math.random,
+            variation
         });
         
         const endTime = Date.now();
@@ -276,17 +311,23 @@ export class ChessAI {
      * 返回最佳走法
      */
     alphaBetaSearch() {
+        const profile = getSearchProfile(this.difficulty);
         return this.iterativeDeepeningSearch({
             maxDepth: this.maxDepth,
             timeLimitMs: Infinity,
-            random: Math.random
+            random: Math.random,
+            variation: {
+                candidateLimit: profile.randomCandidateLimit,
+                maxScoreGap: profile.maxRandomScoreGap,
+                temperature: profile.randomTemperature
+            }
         });
     }
 
     /**
      * 在固定时间内逐层加深。超时的层会被丢弃，只使用最后完整层的评分。
      */
-    iterativeDeepeningSearch({maxDepth, timeLimitMs, random}) {
+    iterativeDeepeningSearch({maxDepth, timeLimitMs, random, variation}) {
         const allMoves = this.sortMoves(this.getAllPossibleMoves());
 
         if (allMoves.length === 0) {
@@ -336,13 +377,8 @@ export class ChessAI {
             }
         }
 
-        const config = DIFFICULTY_CONFIGS[this.difficulty];
         const selectedMove = completedScores
-            ? selectVariedMove(completedScores, random, {
-                candidateLimit: config.randomCandidateLimit,
-                maxScoreGap: config.maxRandomScoreGap,
-                temperature: config.randomTemperature
-            })
+            ? selectVariedMove(completedScores, random, variation)
             : allMoves[Math.floor(Math.min(Math.max(Number(random()) || 0, 0), 0.999999) * Math.min(3, allMoves.length))];
 
         this.lastSearchStats = {

@@ -1,6 +1,6 @@
 // Added for the modified chinese-chess project: non-blocking Web Worker search, 2026.
 
-import { ChessAI, DIFFICULTY_CONFIGS } from './ai.js';
+import { ChessAI, DIFFICULTY_CONFIGS, getSearchProfile } from './ai.js';
 
 function createAbortError() {
     const error = new Error('Search cancelled');
@@ -28,11 +28,13 @@ export class ChessAIClient {
         return true;
     }
 
-    async getBestMove() {
+    async getBestMove({purpose = 'move'} = {}) {
         this.cancelSearch();
 
+        const searchOptions = getSearchProfile(this.difficulty, purpose);
+
         if (typeof Worker === 'undefined') {
-            return this.getFallbackMove();
+            return this.getFallbackMove(searchOptions);
         }
 
         const id = ++this.requestId;
@@ -41,9 +43,8 @@ export class ChessAIClient {
             worker = new Worker(new URL('./ai-worker.js', import.meta.url), {type: 'module'});
         } catch (error) {
             console.warn('无法创建后台搜索线程，改用轻量回退搜索:', error);
-            return this.getFallbackMove();
+            return this.getFallbackMove(searchOptions);
         }
-        const config = DIFFICULTY_CONFIGS[this.difficulty];
 
         return new Promise((resolve, reject) => {
             const cleanup = () => {
@@ -56,11 +57,11 @@ export class ChessAIClient {
             const fallback = (reason) => {
                 console.warn('后台搜索不可用，改用轻量回退搜索:', reason);
                 cleanup();
-                this.getFallbackMove().then(resolve, reject);
+                this.getFallbackMove(searchOptions).then(resolve, reject);
             };
             const guardTimer = setTimeout(() => {
                 fallback('搜索线程超时');
-            }, config.timeLimitMs + 2500);
+            }, searchOptions.timeLimitMs + 2500);
 
             this.activeSearch = {id, worker, reject, cleanup};
 
@@ -89,6 +90,7 @@ export class ChessAIClient {
             worker.postMessage({
                 id,
                 difficulty: this.difficulty,
+                searchOptions,
                 state: {
                     board: this.chess.board.map((row) => row.slice()),
                     currentPlayer: this.chess.currentPlayer,
@@ -107,15 +109,15 @@ export class ChessAIClient {
         reject(createAbortError());
     }
 
-    async getFallbackMove() {
+    async getFallbackMove(searchOptions = getSearchProfile(this.difficulty)) {
         const ai = new ChessAI(this.chess);
         ai.setDifficulty(this.difficulty);
-        const config = DIFFICULTY_CONFIGS[this.difficulty];
 
         // 极少数不支持 Worker 的浏览器也要保持可用，回退搜索最多两层。
         return ai.getBestMove({
-            maxDepth: Math.min(2, config.maxDepth),
-            timeLimitMs: Math.min(650, config.timeLimitMs)
+            ...searchOptions,
+            maxDepth: Math.min(2, searchOptions.maxDepth),
+            timeLimitMs: Math.min(650, searchOptions.timeLimitMs)
         });
     }
 }
