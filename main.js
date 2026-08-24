@@ -1,9 +1,9 @@
-// Modified from shibing624/chinese-chess-ai: background search, difficulty controls, optional clock, inline status, and timed hints, 2026.
+// Modified from shibing624/chinese-chess-ai: background search, check/checkmate flow, difficulty controls, optional clock, and hints, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
 import { ChessAIClient } from './ai-client.js';
-import { BoardRenderer, GameInfoDisplay, GameOverModal } from './ui.js';
+import { BoardRenderer, CheckmateUndoModal, GameInfoDisplay, GameOverModal } from './ui.js';
 import { AudioManager } from './audio.js';
 
 /**
@@ -16,6 +16,7 @@ class GameController {
         this.renderer = new BoardRenderer('chessboard');
         this.infoDisplay = new GameInfoDisplay();
         this.gameOverModal = new GameOverModal();
+        this.checkmateUndoModal = new CheckmateUndoModal();
         this.audioManager = new AudioManager();
         
         this.isAIThinking = false;
@@ -25,6 +26,7 @@ class GameController {
         this.timerEnabled = false;
         this.timerInterval = null;
         this.hintCountdownInterval = null;
+        this.pendingCheckmateDecision = false;
         
         this.init();
     }
@@ -55,6 +57,12 @@ class GameController {
         this.gameOverModal.onClose(() => {
             this.gameOverModal.hide();
             this.newGame();
+        });
+        this.checkmateUndoModal.onUndo(() => this.undoPlayerCheckmate());
+        this.checkmateUndoModal.onEnd(() => {
+            this.checkmateUndoModal.hide();
+            this.pendingCheckmateDecision = false;
+            this.handleGameOver();
         });
         
         // 初始渲染
@@ -127,13 +135,11 @@ class GameController {
         const moveNumber = Math.floor(this.chess.moveHistory.length / 2);
         this.infoDisplay.addMoveToHistory(moveNumber, this.formatMove(moveResult), moveResult.isRed);
         
-        this.updateDisplay();
-        
-        // 检查游戏是否结束
-        if (this.chess.gameOver) {
-            this.handleGameOver();
+        if (this.resolvePostMoveState()) {
             return;
         }
+
+        this.updateDisplay();
         
         // AI 回合
         if (this.chess.currentPlayer === 'black') {
@@ -178,12 +184,11 @@ class GameController {
             const moveNumber = Math.floor(this.chess.moveHistory.length / 2);
             this.infoDisplay.addMoveToHistory(moveNumber, this.formatMove(moveResult), moveResult.isRed);
             
-            this.updateDisplay();
-            
-            // 检查游戏是否结束
-            if (this.chess.gameOver) {
-                this.handleGameOver();
+            if (this.resolvePostMoveState()) {
+                return;
             }
+
+            this.updateDisplay();
             
         } catch (error) {
             if (error.name !== 'AbortError') {
@@ -202,11 +207,89 @@ class GameController {
         this.renderer.render(this.chess.board, this.chess);
         this.infoDisplay.updateCurrentTurn(this.chess.currentPlayer);
         this.infoDisplay.updateMoveCount(this.chess.moveHistory.length);
-        
-        if (this.chess.gameOver) {
+
+        const checkedPlayer = !this.chess.gameOver && this.chess.isInCheck(this.chess.currentPlayer)
+            ? this.chess.currentPlayer
+            : null;
+
+        if (this.pendingCheckmateDecision) {
+            this.infoDisplay.setPlayerStatus('red', '被将死');
+        } else if (!this.isHintSearching) {
+            this.infoDisplay.setPlayerStatus('red', checkedPlayer === 'red' ? '被将军' : null);
+        }
+        if (!this.isAIThinking) {
+            this.infoDisplay.setPlayerStatus('black', checkedPlayer === 'black' ? '被将军' : null);
+        }
+
+        if (this.pendingCheckmateDecision) {
+            this.infoDisplay.updateGameStatus('红方被将死');
+        } else if (this.chess.gameOver) {
             this.infoDisplay.updateGameStatus('游戏结束');
+        } else if (checkedPlayer) {
+            const side = checkedPlayer === 'red' ? '红方' : '黑方';
+            this.infoDisplay.updateGameStatus(`${side}被将军`);
         } else {
             this.infoDisplay.updateGameStatus('进行中');
+        }
+    }
+
+    /**
+     * 处理一步棋后的将军和将死状态。
+     */
+    resolvePostMoveState() {
+        if (this.chess.gameOver) {
+            this.handleGameOver();
+            return true;
+        }
+
+        const checkState = this.chess.getCheckState(this.chess.currentPlayer);
+        if (!checkState.checkmate) return false;
+
+        this.chess.gameOver = true;
+        this.chess.winner = this.chess.currentPlayer === 'red' ? 'black' : 'red';
+
+        if (this.chess.currentPlayer === 'red') {
+            this.handlePlayerCheckmate();
+        } else {
+            // AI 被将死时直接结束对局。
+            this.handleGameOver();
+        }
+
+        return true;
+    }
+
+    /**
+     * 玩家被将死时暂停对局并询问是否悔棋。
+     */
+    handlePlayerCheckmate() {
+        this.pendingCheckmateDecision = true;
+        this.stopTimer();
+        this.renderer.clearSelection();
+        this.updateDisplay();
+        this.checkmateUndoModal.show();
+    }
+
+    /**
+     * 从玩家被将死的局面撤销 AI 和玩家最近各一步。
+     */
+    undoPlayerCheckmate() {
+        this.checkmateUndoModal.hide();
+        this.pendingCheckmateDecision = false;
+
+        const result = this.chess.undoMove();
+        if (!result) {
+            this.handleGameOver();
+            return;
+        }
+
+        this.audioManager.playUndoSound();
+        this.renderer.clearSelection();
+        this.renderer.setLastMove(null);
+        this.rebuildMoveHistory();
+        this.updateDisplay();
+
+        if (this.timerEnabled) {
+            this.startTimer();
         }
     }
 
@@ -218,6 +301,8 @@ class GameController {
 
         this.ai.cancelSearch();
         this.cancelHintCountdown();
+        this.checkmateUndoModal.hide();
+        this.pendingCheckmateDecision = false;
         
         this.chess.reset();
         this.renderer.clearSelection();
@@ -323,7 +408,7 @@ class GameController {
             }
         } finally {
             this.isHintSearching = false;
-            this.infoDisplay.setPlayerStatus('red');
+            this.updateDisplay();
         }
     }
 

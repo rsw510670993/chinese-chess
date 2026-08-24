@@ -620,7 +620,7 @@ export class ChessAI {
                 const piece = this.chess.getPiece(x, y);
                 
                 if (piece) {
-                    const moves = this.chess.getLegalMoves(x, y);
+                    const moves = this.chess.getPseudoLegalMoves(x, y);
                     
                     if (this.chess.isCurrentPlayerPiece(piece)) {
                         myMobility += moves.length;
@@ -647,7 +647,7 @@ export class ChessAI {
                 const piece = this.chess.getPiece(x, y);
                 
                 if (piece) {
-                    const moves = this.chess.getLegalMoves(x, y);
+                    const moves = this.chess.getPseudoLegalMoves(x, y);
                     
                     for (const move of moves) {
                         const target = this.chess.getPiece(move.x, move.y);
@@ -683,7 +683,7 @@ export class ChessAI {
                     const piece = this.chess.getPiece(x, y);
                     
                     if (piece && this.chess.isCurrentPlayerPiece(piece)) {
-                        const moves = this.chess.getLegalMoves(x, y);
+                        const moves = this.chess.getPseudoLegalMoves(x, y);
                         
                         if (moves.some(m => m.x === enemyKingPos.x && m.y === enemyKingPos.y)) {
                             checkScore += 100; // 将军奖励
@@ -702,7 +702,7 @@ export class ChessAI {
                     const piece = this.chess.getPiece(x, y);
                     
                     if (piece && !this.chess.isCurrentPlayerPiece(piece)) {
-                        const moves = this.chess.getLegalMoves(x, y);
+                        const moves = this.chess.getPseudoLegalMoves(x, y);
                         
                         if (moves.some(m => m.x === myKingPos.x && m.y === myKingPos.y)) {
                             checkScore -= 100; // 被将军惩罚

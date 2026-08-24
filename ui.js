@@ -1,6 +1,6 @@
 // UI 渲染模块
 
-// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, inline status, and visual move suggestions, 2026.
+// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, inline status, checkmate decisions, and move suggestions, 2026.
 
 /**
  * 根据容器可用宽度计算棋盘尺寸。
@@ -508,6 +508,9 @@ export class GameInfoDisplay {
      */
     updateGameStatus(status) {
         this.gameStatusEl.textContent = status;
+        const isWarning = status.includes('将军') || status.includes('将死');
+        this.gameStatusEl.classList.toggle('text-red-700', isWarning);
+        this.gameStatusEl.classList.toggle('text-blue-700', !isWarning);
     }
 
     /**
@@ -621,5 +624,34 @@ export class GameOverModal {
      */
     onClose(callback) {
         this.closeBtn.addEventListener('click', callback);
+    }
+}
+
+/**
+ * 玩家被将死后的悔棋选择弹窗
+ */
+export class CheckmateUndoModal {
+    constructor() {
+        this.modal = document.getElementById('checkmateUndoModal');
+        this.undoBtn = document.getElementById('checkmateUndoBtn');
+        this.endBtn = document.getElementById('checkmateEndBtn');
+    }
+
+    show() {
+        this.modal.classList.remove('hidden');
+        this.modal.classList.add('flex');
+    }
+
+    hide() {
+        this.modal.classList.add('hidden');
+        this.modal.classList.remove('flex');
+    }
+
+    onUndo(callback) {
+        this.undoBtn.addEventListener('click', callback);
+    }
+
+    onEnd(callback) {
+        this.endBtn.addEventListener('click', callback);
     }
 }
