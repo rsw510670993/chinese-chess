@@ -1,6 +1,6 @@
 // UI 渲染模块
 
-// Modified from shibing624/chinese-chess-ai: optional clock and responsive board support, 2026.
+// Modified from shibing624/chinese-chess-ai: optional clock, responsive board, and inline player status support, 2026.
 
 /**
  * 根据容器可用宽度计算棋盘尺寸。
@@ -397,7 +397,8 @@ export class GameInfoDisplay {
         this.moveCountEl = document.getElementById('moveCount');
         this.gameStatusEl = document.getElementById('gameStatus');
         this.moveHistoryEl = document.getElementById('moveHistory');
-        this.aiThinkingEl = document.getElementById('aiThinking');
+        this.redPlayerLabelEl = document.getElementById('redPlayerLabel');
+        this.blackPlayerLabelEl = document.getElementById('blackPlayerLabel');
         this.redTimerEl = document.getElementById('redTimer');
         this.blackTimerEl = document.getElementById('blackTimer');
     }
@@ -454,10 +455,14 @@ export class GameInfoDisplay {
     }
 
     /**
-     * 更新 AI 思考
+     * 更新棋盘旁的玩家状态
      */
-    updateAIThinking(text) {
-        this.aiThinkingEl.textContent = text;
+    setPlayerStatus(player, status = null) {
+        const isRed = player === 'red';
+        const label = isRed ? this.redPlayerLabelEl : this.blackPlayerLabelEl;
+        const side = isRed ? '红方' : '黑方';
+        const role = status || (isRed ? '玩家' : 'AI');
+        label.textContent = `${side}（${role}）`;
     }
 
     /**
