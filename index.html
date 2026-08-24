@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Modified from shibing624/chinese-chess-ai: streamlined mobile layout, player status, and optional clock, 2026. -->
+<!-- Modified from shibing624/chinese-chess-ai: mobile layout, difficulty controls, player status, and optional clock, 2026. -->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -70,6 +70,15 @@
                             <span class="text-gray-600">回合数</span>
                             <span id="moveCount" class="font-bold text-gray-800">0</span>
                         </div>
+                        <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-gray-50 rounded-lg text-sm sm:text-base">
+                            <span class="text-gray-600">难度</span>
+                            <select id="difficultySelect" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200" aria-label="选择对局难度">
+                                <option value="fast">极速</option>
+                                <option value="standard" selected>标准</option>
+                                <option value="hard">困难</option>
+                                <option value="master">大师</option>
+                            </select>
+                        </label>
                         <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-amber-50 rounded-lg text-sm sm:text-base cursor-pointer">
                             <span>
                                 <span class="block font-medium text-gray-700">对局计时</span>

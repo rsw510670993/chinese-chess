@@ -1,4 +1,4 @@
-// Modified from shibing624/chinese-chess-ai: optional clock and inline player status support, 2026.
+// Modified from shibing624/chinese-chess-ai: difficulty controls, optional clock, and inline player status, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
@@ -43,6 +43,11 @@ class GameController {
         document.getElementById('soundBtn').addEventListener('click', () => this.toggleSound());
         document.getElementById('timerToggle').addEventListener('change', (event) => {
             this.setTimerEnabled(event.target.checked);
+        });
+        const difficultySelect = document.getElementById('difficultySelect');
+        this.ai.setDifficulty(difficultySelect.value);
+        difficultySelect.addEventListener('change', (event) => {
+            this.ai.setDifficulty(event.target.value);
         });
         
         // 设置游戏结束弹窗
