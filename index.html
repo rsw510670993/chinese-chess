@@ -1,145 +1,128 @@
-<!DOCTYPE html>
-<!-- Modified from shibing624/chinese-chess-ai: mobile layout, background search, checkmate decisions, difficulty controls, optional clock, and hints, 2026. -->
+<!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中国象棋</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="纯前端中国象棋人机对战，支持多档 AI 难度、提示、计时和悔棋。">
+  <title>中国象棋</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 min-h-screen">
-    <div class="container mx-auto px-4 py-6">
-        <!-- 主要内容区域 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-            <!-- 左侧：棋盘区域 -->
-            <div class="min-w-0 lg:col-span-2">
-                <div class="overflow-hidden bg-white rounded-2xl shadow-2xl p-3 sm:p-4 md:p-6">
-                    <div class="flex justify-between items-center mb-2 sm:mb-3 md:mb-4">
-                        <div class="flex items-center gap-2 sm:gap-3">
-                            <div class="w-3 h-3 sm:w-4 sm:h-4 bg-black rounded-full"></div>
-                            <span id="blackPlayerLabel" class="font-bold text-sm sm:text-base md:text-lg" aria-live="polite">黑方（AI）</span>
-                        </div>
-                        <div id="blackTimer" class="hidden text-lg sm:text-xl md:text-2xl font-mono font-bold text-gray-700">15:00</div>
-                    </div>
+<body>
+  <header class="topbar">
+    <a class="back-link" href="../" aria-label="返回游戏中心"><span aria-hidden="true">←</span><b>游戏中心</b></a>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">帥</span>
+      <span>中国象棋</span>
+    </div>
+    <button id="themeButton" class="icon-button" type="button" aria-label="切换深色模式" title="切换深色模式">◐</button>
+  </header>
 
-                    <!-- 棋盘 -->
-                    <div id="chessboard" class="chess-board mx-auto"></div>
+  <main class="game-layout">
+    <section class="board-card" aria-label="中国象棋棋盘区域">
+      <div class="player-bar">
+        <div class="player-info">
+          <span class="player-dot black" aria-hidden="true"></span>
+          <span id="blackPlayerLabel" aria-live="polite">黑方（AI）</span>
+        </div>
+        <div id="blackTimer" class="timer hidden">15:00</div>
+      </div>
 
-                    <div class="flex justify-between items-center mt-2 sm:mt-3 md:mt-4">
-                        <div class="flex items-center gap-2 sm:gap-3">
-                            <div class="w-3 h-3 sm:w-4 sm:h-4 bg-red-600 rounded-full"></div>
-                            <span id="redPlayerLabel" class="font-bold text-sm sm:text-base md:text-lg" aria-live="polite">红方（玩家）</span>
-                        </div>
-                        <div id="redTimer" class="hidden text-lg sm:text-xl md:text-2xl font-mono font-bold text-red-600">15:00</div>
-                    </div>
+      <div id="chessboard" class="chess-board"></div>
 
-                    <!-- 控制按钮 -->
-                    <div class="flex gap-2 sm:gap-3 mt-3 sm:mt-4 md:mt-6">
-                        <button id="newGameBtn" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 active:from-red-800 active:to-red-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-2 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg text-xs sm:text-sm md:text-base">
-                            <i class="fas fa-plus-circle mr-1 sm:mr-2"></i><span class="hidden sm:inline">新游戏</span><span class="sm:hidden">新局</span>
-                        </button>
-                        <button id="undoBtn" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-2 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg text-xs sm:text-sm md:text-base">
-                            <i class="fas fa-undo mr-1 sm:mr-2"></i>悔棋
-                        </button>
-                        <button id="hintBtn" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 active:from-green-800 active:to-green-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-2 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg text-xs sm:text-sm md:text-base">
-                            <i class="fas fa-lightbulb mr-1 sm:mr-2"></i>提示<span id="hintCountdown" class="hidden ml-1 tabular-nums" aria-live="polite"></span>
-                        </button>
-                        <button id="soundBtn" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 active:from-purple-800 active:to-purple-900 text-white font-bold py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-6 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg">
-                            <i class="fas fa-volume-up text-sm sm:text-base"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
+      <div class="player-bar">
+        <div class="player-info">
+          <span class="player-dot red" aria-hidden="true"></span>
+          <span id="redPlayerLabel" aria-live="polite">红方（玩家）</span>
+        </div>
+        <div id="redTimer" class="timer red hidden">15:00</div>
+      </div>
 
-            <!-- 右侧：信息面板 -->
-            <div class="space-y-3 sm:space-y-4 md:space-y-6">
-                <!-- 游戏状态 -->
-                <div class="bg-white rounded-xl md:rounded-2xl shadow-xl p-3 sm:p-4 md:p-6">
-                    <h3 class="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-2 sm:mb-3 md:mb-4 flex items-center gap-2">
-                        <i class="fas fa-info-circle text-blue-600"></i>
-                        游戏状态
-                    </h3>
-                    <div class="space-y-2 sm:space-y-2.5 md:space-y-3">
-                        <div class="flex justify-between items-center p-2 sm:p-2.5 md:p-3 bg-gray-50 rounded-lg text-sm sm:text-base">
-                            <span class="text-gray-600">当前回合</span>
-                            <span id="currentTurn" class="font-bold text-red-600">红方</span>
-                        </div>
-                        <div class="flex justify-between items-center p-2 sm:p-2.5 md:p-3 bg-gray-50 rounded-lg text-sm sm:text-base">
-                            <span class="text-gray-600">回合数</span>
-                            <span id="moveCount" class="font-bold text-gray-800">0</span>
-                        </div>
-                        <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-gray-50 rounded-lg text-sm sm:text-base">
-                            <span class="text-gray-600">难度</span>
-                            <select id="difficultySelect" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200" aria-label="选择对局难度">
-                                <option value="fast">极速</option>
-                                <option value="standard" selected>标准</option>
-                                <option value="hard">困难</option>
-                                <option value="master">大师</option>
-                            </select>
-                        </label>
-                        <label class="flex justify-between items-center gap-3 p-2 sm:p-2.5 md:p-3 bg-amber-50 rounded-lg text-sm sm:text-base cursor-pointer">
-                            <span>
-                                <span class="block font-medium text-gray-700">对局计时</span>
-                                <span class="block text-xs text-gray-500">每方 15 分钟，默认关闭</span>
-                            </span>
-                            <input id="timerToggle" type="checkbox" class="w-5 h-5 accent-red-600" aria-label="启用每方十五分钟对局计时">
-                        </label>
-                        <div class="p-2 sm:p-2.5 md:p-3 bg-blue-50 rounded-lg">
-                            <div class="text-xs sm:text-sm text-gray-600 mb-1">游戏状态</div>
-                            <div id="gameStatus" class="font-bold text-blue-700 text-sm sm:text-base">进行中</div>
-                        </div>
-                    </div>
-                </div>
+      <div class="actions board-actions">
+        <button id="newGameBtn" class="primary-button" type="button">新游戏</button>
+        <button id="undoBtn" class="secondary-button" type="button">悔棋</button>
+        <button id="hintBtn" class="secondary-button" type="button">提示<span id="hintCountdown" class="hint-countdown" hidden></span></button>
+        <button id="soundBtn" class="secondary-button" type="button">音效</button>
+      </div>
+    </section>
 
-                <!-- 走法历史 -->
-                <div class="bg-white rounded-xl md:rounded-2xl shadow-xl p-3 sm:p-4 md:p-6">
-                    <h3 class="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-2 sm:mb-3 md:mb-4 flex items-center gap-2">
-                        <i class="fas fa-history text-orange-600"></i>
-                        走法历史
-                    </h3>
-                    <div id="moveHistory" class="space-y-1 sm:space-y-2 max-h-48 sm:max-h-56 md:max-h-64 overflow-y-auto text-xs sm:text-sm"></div>
-                </div>
-
-            </div>
+    <aside class="side-panel">
+      <section class="panel status-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">对局信息</p>
+            <h1>挑战电脑</h1>
+          </div>
         </div>
 
-    </div>
-
-    <!-- 游戏结束弹窗 -->
-    <div id="gameOverModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 transform transition-all">
-            <div class="text-center">
-                <div id="gameOverIcon" class="text-6xl mb-4"></div>
-                <h2 id="gameOverTitle" class="text-3xl font-bold text-gray-800 mb-2"></h2>
-                <p id="gameOverMessage" class="text-gray-600 mb-6"></p>
-                <button id="closeModalBtn" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 shadow-lg">
-                    开始新游戏
-                </button>
-            </div>
+        <div class="info-row">
+          <span>当前回合</span>
+          <strong id="currentTurn">红方</strong>
         </div>
-    </div>
 
-    <!-- 玩家被将死后的选择弹窗 -->
-    <div id="checkmateUndoModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="checkmateUndoTitle">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md mx-4 transform transition-all">
-            <div class="text-center">
-                <div class="text-5xl sm:text-6xl mb-4">⚠️</div>
-                <h2 id="checkmateUndoTitle" class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">红方被将死</h2>
-                <p class="text-gray-600 mb-6">当前没有可解除将军的走法，是否悔棋？</p>
-                <div class="flex gap-3">
-                    <button id="checkmateEndBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-xl transition-colors">
-                        结束对局
-                    </button>
-                    <button id="checkmateUndoBtn" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-4 rounded-xl shadow-lg">
-                        悔棋
-                    </button>
-                </div>
-            </div>
+        <div class="info-row">
+          <span>回合数</span>
+          <strong id="moveCount">0</strong>
         </div>
-    </div>
 
-    <script type="module" src="main.js?v=20260824-checkmate2"></script>
+        <label class="field">
+          <span>AI 难度</span>
+          <select id="difficultySelect">
+            <option value="fast">极速</option>
+            <option value="standard" selected>标准</option>
+            <option value="hard">困难</option>
+            <option value="master">大师</option>
+          </select>
+        </label>
+
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>对局计时</strong>
+            <small>每方 15 分钟，默认关闭</small>
+          </span>
+          <input id="timerToggle" type="checkbox" aria-label="启用每方十五分钟对局计时">
+        </label>
+
+        <div class="info-row status-box">
+          <span>游戏状态</span>
+          <strong id="gameStatus" class="status-value">进行中</strong>
+        </div>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="history-heading">
+          <h2>走法历史</h2>
+          <span>记录</span>
+        </div>
+        <div id="moveHistory" class="history-list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <div id="gameOverModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+      <div id="gameOverIcon" class="result-icon" aria-hidden="true"></div>
+      <p class="eyebrow">本局结束</p>
+      <h2 id="gameOverTitle">你赢了</h2>
+      <p id="gameOverMessage"></p>
+      <div class="modal-actions">
+        <button id="closeModalBtn" class="primary-button" type="button">开始新游戏</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="checkmateUndoModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="checkmateUndoTitle">
+    <div class="modal-card">
+      <div class="result-icon warning" aria-hidden="true">!</div>
+      <p class="eyebrow">红方被将死</p>
+      <h2 id="checkmateUndoTitle">红方被将死</h2>
+      <p>当前没有可解除将军的走法，是否悔棋？</p>
+      <div class="modal-actions">
+        <button id="checkmateEndBtn" class="secondary-button" type="button">结束对局</button>
+        <button id="checkmateUndoBtn" class="primary-button" type="button">悔棋</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js?v=20260824-checkmate2"></script>
 </body>
 </html>

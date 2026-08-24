@@ -44,6 +44,8 @@ class GameController {
         document.getElementById('undoBtn').addEventListener('click', () => this.undoMove());
         document.getElementById('hintBtn').addEventListener('click', () => this.showHint());
         document.getElementById('soundBtn').addEventListener('click', () => this.toggleSound());
+        document.getElementById('themeButton').addEventListener('click', () => this.toggleTheme());
+        this.initTheme();
         document.getElementById('timerToggle').addEventListener('change', (event) => {
             this.setTimerEnabled(event.target.checked);
         });
@@ -462,16 +464,38 @@ class GameController {
     toggleSound() {
         const enabled = this.audioManager.toggle();
         const soundBtn = document.getElementById('soundBtn');
-        const icon = soundBtn.querySelector('i');
-        
+        soundBtn.classList.toggle('is-muted', !enabled);
+        soundBtn.textContent = enabled ? '音效：开' : '音效：关';
         if (enabled) {
-            icon.className = 'fas fa-volume-up';
-            soundBtn.classList.remove('opacity-50');
             this.audioManager.playSelectSound();
-        } else {
-            icon.className = 'fas fa-volume-mute';
-            soundBtn.classList.add('opacity-50');
         }
+    }
+
+    /**
+     * 切换夜间模式
+     */
+    toggleTheme() {
+        const dark = !document.body.classList.contains('dark');
+        document.body.classList.toggle('dark', dark);
+        const themeButton = document.getElementById('themeButton');
+        themeButton.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+        themeButton.title = dark ? '切换浅色模式' : '切换深色模式';
+        try {
+            localStorage.setItem('chinese-chess-theme', dark ? 'dark' : 'light');
+        } catch {}
+    }
+
+    /**
+     * 初始化夜间模式
+     */
+    initTheme() {
+        try {
+            const dark = localStorage.getItem('chinese-chess-theme') === 'dark';
+            document.body.classList.toggle('dark', dark);
+            const themeButton = document.getElementById('themeButton');
+            themeButton.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+            themeButton.title = dark ? '切换浅色模式' : '切换深色模式';
+        } catch {}
     }
 
     /**

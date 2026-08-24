@@ -493,7 +493,7 @@ export class GameInfoDisplay {
      */
     updateCurrentTurn(player) {
         this.currentTurnEl.textContent = player === 'red' ? '红方' : '黑方';
-        this.currentTurnEl.className = player === 'red' ? 'font-bold text-red-600' : 'font-bold text-gray-800';
+        this.currentTurnEl.className = player === 'red' ? 'turn-value red' : 'turn-value black';
     }
 
     /**
@@ -509,8 +509,7 @@ export class GameInfoDisplay {
     updateGameStatus(status) {
         this.gameStatusEl.textContent = status;
         const isWarning = status.includes('将军') || status.includes('将死');
-        this.gameStatusEl.classList.toggle('text-red-700', isWarning);
-        this.gameStatusEl.classList.toggle('text-blue-700', !isWarning);
+        this.gameStatusEl.className = isWarning ? 'status-value warning' : 'status-value';
     }
 
     /**
@@ -521,11 +520,11 @@ export class GameInfoDisplay {
         moveItem.classList.add('move-item');
         
         const moveNumberSpan = document.createElement('span');
-        moveNumberSpan.className = 'font-bold text-gray-700';
+        moveNumberSpan.className = 'move-number';
         moveNumberSpan.textContent = `${moveNumber}. `;
         
         const moveTextSpan = document.createElement('span');
-        moveTextSpan.className = isRed ? 'text-red-600' : 'text-gray-800';
+        moveTextSpan.className = isRed ? 'move-text red' : 'move-text black';
         moveTextSpan.textContent = moveText;
         
         moveItem.appendChild(moveNumberSpan);
@@ -594,29 +593,27 @@ export class GameOverModal {
      */
     show(winner) {
         if (winner === 'red') {
-            this.icon.textContent = '🎉';
+            this.icon.textContent = '胜';
             this.title.textContent = '恭喜获胜！';
             this.message.textContent = '红方获得胜利';
         } else if (winner === 'black') {
-            this.icon.textContent = '😔';
+            this.icon.textContent = '负';
             this.title.textContent = '遗憾落败';
             this.message.textContent = '黑方（AI）获得胜利';
         } else {
-            this.icon.textContent = '🤝';
+            this.icon.textContent = '和';
             this.title.textContent = '和棋';
             this.message.textContent = '双方平局';
         }
         
-        this.modal.classList.remove('hidden');
-        this.modal.classList.add('flex');
+        this.modal.hidden = false;
     }
 
     /**
      * 隐藏弹窗
      */
     hide() {
-        this.modal.classList.add('hidden');
-        this.modal.classList.remove('flex');
+        this.modal.hidden = true;
     }
 
     /**
@@ -649,14 +646,12 @@ export class CheckmateUndoModal {
             return;
         }
 
-        this.modal.classList.remove('hidden');
-        this.modal.classList.add('flex');
+        this.modal.hidden = false;
     }
 
     hide() {
         if (!this.modal) return;
-        this.modal.classList.add('hidden');
-        this.modal.classList.remove('flex');
+        this.modal.hidden = true;
     }
 
     onUndo(callback) {
