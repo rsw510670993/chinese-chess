@@ -1,10 +1,10 @@
 // Modified from shibing624/chinese-chess-ai: background search, check/checkmate flow, difficulty controls, optional clock, and hints, 2026.
 // 主程序入口
 
-import { ChineseChess } from './chess.js';
-import { ChessAIClient } from './ai-client.js';
-import { BoardRenderer, CheckmateUndoModal, GameInfoDisplay, GameOverModal } from './ui.js';
-import { AudioManager } from './audio.js';
+import { ChineseChess } from './chess.js?v=20260824-checkmate2';
+import { ChessAIClient } from './ai-client.js?v=20260824-checkmate2';
+import { BoardRenderer, CheckmateUndoModal, GameInfoDisplay, GameOverModal } from './ui.js?v=20260824-checkmate2';
+import { AudioManager } from './audio.js?v=20260824-checkmate2';
 
 /**
  * 游戏控制器

@@ -635,23 +635,37 @@ export class CheckmateUndoModal {
         this.modal = document.getElementById('checkmateUndoModal');
         this.undoBtn = document.getElementById('checkmateUndoBtn');
         this.endBtn = document.getElementById('checkmateEndBtn');
+        this.undoCallback = null;
+        this.endCallback = null;
     }
 
     show() {
+        if (!this.modal) {
+            if (window.confirm('红方被将死，是否悔棋？')) {
+                this.undoCallback?.();
+            } else {
+                this.endCallback?.();
+            }
+            return;
+        }
+
         this.modal.classList.remove('hidden');
         this.modal.classList.add('flex');
     }
 
     hide() {
+        if (!this.modal) return;
         this.modal.classList.add('hidden');
         this.modal.classList.remove('flex');
     }
 
     onUndo(callback) {
-        this.undoBtn.addEventListener('click', callback);
+        this.undoCallback = callback;
+        this.undoBtn?.addEventListener('click', callback);
     }
 
     onEnd(callback) {
-        this.endBtn.addEventListener('click', callback);
+        this.endCallback = callback;
+        this.endBtn?.addEventListener('click', callback);
     }
 }

@@ -1,7 +1,7 @@
 // Added for the modified chinese-chess project: background time-limited search, 2026.
 
-import { ChessAI } from './ai.js';
-import { ChineseChess } from './chess.js';
+import { ChessAI } from './ai.js?v=20260824-checkmate2';
+import { ChineseChess } from './chess.js?v=20260824-checkmate2';
 
 self.onmessage = async (event) => {
     const {id, difficulty, searchOptions, state} = event.data;

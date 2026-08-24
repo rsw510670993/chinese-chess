@@ -1,6 +1,6 @@
 // Added for the modified chinese-chess project: non-blocking Web Worker search, 2026.
 
-import { ChessAI, DIFFICULTY_CONFIGS, getSearchProfile } from './ai.js';
+import { ChessAI, DIFFICULTY_CONFIGS, getSearchProfile } from './ai.js?v=20260824-checkmate2';
 
 function createAbortError() {
     const error = new Error('Search cancelled');
@@ -42,7 +42,7 @@ export class ChessAIClient {
         const id = ++this.requestId;
         let worker;
         try {
-            worker = new Worker(new URL('./ai-worker.js', import.meta.url), {type: 'module'});
+            worker = new Worker(new URL('./ai-worker.js?v=20260824-checkmate2', import.meta.url), {type: 'module'});
         } catch (error) {
             console.warn('无法创建后台搜索线程，改用轻量回退搜索:', error);
             return this.getFallbackMove(searchOptions);
