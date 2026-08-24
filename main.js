@@ -1,4 +1,4 @@
-// Modified from shibing624/chinese-chess-ai: difficulty controls, optional clock, and inline player status, 2026.
+// Modified from shibing624/chinese-chess-ai: difficulty controls, optional clock, inline player status, and timed move hints, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
@@ -24,6 +24,7 @@ class GameController {
         this.blackTime = 900;
         this.timerEnabled = false;
         this.timerInterval = null;
+        this.hintCountdownInterval = null;
         
         this.init();
     }
@@ -66,6 +67,8 @@ class GameController {
      */
     handlePieceClick(x, y, piece) {
         if (this.chess.gameOver || this.isAIThinking || this.isHintSearching) return;
+
+        this.cancelHintCountdown();
         
         // 如果不是当前玩家的棋子，检查是否可以吃子
         if (!this.chess.isCurrentPlayerPiece(piece)) {
@@ -101,6 +104,8 @@ class GameController {
      */
     async handleMoveClick(toX, toY) {
         if (!this.renderer.selectedPiece || this.chess.gameOver || this.isAIThinking || this.isHintSearching) return;
+
+        this.cancelHintCountdown();
         
         const fromX = this.renderer.selectedPiece.x;
         const fromY = this.renderer.selectedPiece.y;
@@ -208,6 +213,8 @@ class GameController {
      */
     newGame() {
         this.audioManager.playNewGameSound();
+
+        this.cancelHintCountdown();
         
         this.chess.reset();
         this.renderer.clearSelection();
@@ -248,6 +255,8 @@ class GameController {
             console.log('悔棋失败');
             return;
         }
+
+        this.cancelHintCountdown();
         
         // 播放悔棋音效
         this.audioManager.playUndoSound();
@@ -286,6 +295,9 @@ class GameController {
     async showHint() {
         if (this.chess.gameOver || this.chess.currentPlayer !== 'red' || this.isAIThinking || this.isHintSearching) return;
 
+        this.cancelHintCountdown();
+        this.renderer.clearSelection();
+        this.updateDisplay();
         this.isHintSearching = true;
         this.infoDisplay.setPlayerStatus('red', '检索提示中');
         
@@ -294,24 +306,62 @@ class GameController {
             const hintMove = await this.ai.getBestMove();
             
             if (hintMove && hintMove.from && hintMove.to) {
-                // 提示只负责展示，不占用真实的棋子选择状态
-                this.renderer.clearSelection();
+                // 选中推荐棋子，使玩家可以直接按提示落子
+                this.renderer.setSelectedPiece(hintMove.from.x, hintMove.from.y);
+                this.renderer.setLegalMoves(this.chess.getLegalMoves(hintMove.from.x, hintMove.from.y));
                 this.renderer.setSuggestedMove(hintMove);
                 this.updateDisplay();
-                
-                // 3秒后清除提示；玩家提前选子时也会自动清除
-                setTimeout(() => {
-                    if (this.renderer.suggestedMove === hintMove) {
-                        this.renderer.setSuggestedMove(null);
-                        this.updateDisplay();
-                    }
-                }, 3000);
+                this.startHintCountdown(hintMove, 3);
             }
         } catch (error) {
             console.error('提示错误:', error);
         } finally {
             this.isHintSearching = false;
             this.infoDisplay.setPlayerStatus('red');
+        }
+    }
+
+    /**
+     * 启动提示自动消失倒计时
+     */
+    startHintCountdown(hintMove, durationSeconds) {
+        this.cancelHintCountdown();
+
+        const countdownEl = document.getElementById('hintCountdown');
+        const expiresAt = Date.now() + durationSeconds * 1000;
+        const updateCountdown = () => {
+            const remaining = Math.ceil((expiresAt - Date.now()) / 1000);
+
+            if (remaining <= 0) {
+                this.cancelHintCountdown();
+                if (this.renderer.suggestedMove === hintMove) {
+                    this.renderer.clearSelection();
+                    this.updateDisplay();
+                }
+                return;
+            }
+
+            countdownEl.textContent = `${remaining}秒`;
+            countdownEl.classList.remove('hidden');
+        };
+
+        updateCountdown();
+        this.hintCountdownInterval = setInterval(updateCountdown, 200);
+    }
+
+    /**
+     * 停止提示倒计时，但保留当前棋盘状态供调用方处理
+     */
+    cancelHintCountdown() {
+        if (this.hintCountdownInterval) {
+            clearInterval(this.hintCountdownInterval);
+            this.hintCountdownInterval = null;
+        }
+
+        const countdownEl = document.getElementById('hintCountdown');
+        if (countdownEl) {
+            countdownEl.textContent = '';
+            countdownEl.classList.add('hidden');
         }
     }
 

@@ -1,4 +1,4 @@
-<!-- Modified from shibing624/chinese-chess-ai: difficulty presets, optional clock, responsive layout, and varied move selection, 2026. -->
+<!-- Modified from shibing624/chinese-chess-ai: difficulty presets, optional clock, responsive layout, varied move selection, and timed visual hints, 2026. -->
 
 # 🏮 中国象棋AI人机对弈网站
 
@@ -123,7 +123,7 @@ chinese-chess-ai/
 |------|------|------|
 | 🆕 **新游戏** | 重新开始 | 重置棋盘，开始新的对局 |
 | ↩️ **悔棋** | 撤销走法 | 撤销最近两步（玩家+AI各一步） |
-| 💡 **提示** | AI建议 | 用箭头与目标圆环标出推荐走法 |
+| 💡 **提示** | AI建议 | 选中推荐棋子，并用箭头与目标圆环标出走法；倒计时结束后自动取消 |
 | 🔊 **音效** | 声音开关 | 开启/关闭游戏音效 |
 | 🎚️ **难度** | 检索强度 | 可选择极速、标准、困难或大师 |
 | ⏱️ **计时** | 对局时钟 | 可选的双方15分钟计时 |
