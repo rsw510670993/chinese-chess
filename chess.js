@@ -1,3 +1,4 @@
+// Modified from shibing624/chinese-chess-ai: check, legal evasion, and checkmate rules, 2026.
 // 中国象棋游戏逻辑模块
 
 /**
@@ -72,12 +73,25 @@ export class ChineseChess {
     getLegalMoves(x, y) {
         const piece = this.getPiece(x, y);
         if (!piece) return [];
-        
+
+        const isRed = this.isRed(piece);
+        return this.getPseudoLegalMoves(x, y).filter(
+            (move) => !this.wouldLeaveKingInCheck(x, y, move.x, move.y, isRed)
+        );
+    }
+
+    /**
+     * 获取仅符合棋子移动方式的走法，不检查己方将帅是否受攻。
+     */
+    getPseudoLegalMoves(x, y) {
+        const piece = this.getPiece(x, y);
+        if (!piece) return [];
+
         const pieceType = piece.toUpperCase();
         const isRed = this.isRed(piece);
-        
+
         let moves = [];
-        
+
         switch (pieceType) {
             case 'K': // 帅/将
                 moves = this.getKingMoves(x, y, isRed);
@@ -101,8 +115,87 @@ export class ChineseChess {
                 moves = this.getPawnMoves(x, y, isRed);
                 break;
         }
-        
+
         return moves;
+    }
+
+    /**
+     * 判断指定一方的将帅是否正在被攻击。
+     */
+    isInCheck(player = this.currentPlayer) {
+        const isRed = typeof player === 'boolean' ? player : player === 'red';
+        const king = isRed ? 'K' : 'k';
+        let kingPosition = null;
+
+        for (let y = 0; y < 10 && !kingPosition; y++) {
+            for (let x = 0; x < 9; x++) {
+                if (this.board[y][x] === king) {
+                    kingPosition = {x, y};
+                    break;
+                }
+            }
+        }
+
+        if (!kingPosition) return false;
+
+        for (let y = 0; y < 10; y++) {
+            for (let x = 0; x < 9; x++) {
+                const piece = this.getPiece(x, y);
+                if (!piece || this.isRed(piece) === isRed) continue;
+
+                const attacksKing = this.getPseudoLegalMoves(x, y).some(
+                    (move) => move.x === kingPosition.x && move.y === kingPosition.y
+                );
+                if (attacksKing) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 模拟一步棋，检查是否仍让己方将帅受攻。
+     */
+    wouldLeaveKingInCheck(fromX, fromY, toX, toY, isRed) {
+        const piece = this.board[fromY][fromX];
+        const captured = this.board[toY][toX];
+
+        this.board[toY][toX] = piece;
+        this.board[fromY][fromX] = null;
+        const leavesKingInCheck = this.isInCheck(isRed);
+        this.board[fromY][fromX] = piece;
+        this.board[toY][toX] = captured;
+
+        return leavesKingInCheck;
+    }
+
+    /**
+     * 判断指定一方是否至少还有一步合法走法。
+     */
+    hasAnyLegalMove(player = this.currentPlayer) {
+        const isRed = typeof player === 'boolean' ? player : player === 'red';
+
+        for (let y = 0; y < 10; y++) {
+            for (let x = 0; x < 9; x++) {
+                const piece = this.getPiece(x, y);
+                if (piece && this.isRed(piece) === isRed && this.getLegalMoves(x, y).length > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 返回当前一方的将军和将死状态。
+     */
+    getCheckState(player = this.currentPlayer) {
+        const inCheck = this.isInCheck(player);
+        return {
+            inCheck,
+            checkmate: inCheck && !this.hasAnyLegalMove(player)
+        };
     }
 
     /**
