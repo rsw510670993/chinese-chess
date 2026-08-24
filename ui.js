@@ -1,5 +1,7 @@
 // UI 渲染模块
 
+// Modified from shibing624/chinese-chess-ai: optional game clock display support, 2026.
+
 /**
  * 棋盘渲染器
  */
@@ -432,6 +434,14 @@ export class GameInfoDisplay {
         } else {
             this.blackTimerEl.textContent = timeText;
         }
+    }
+
+    /**
+     * 显示或隐藏双方计时器
+     */
+    setTimerVisibility(visible) {
+        this.redTimerEl.classList.toggle('hidden', !visible);
+        this.blackTimerEl.classList.toggle('hidden', !visible);
     }
 }
 

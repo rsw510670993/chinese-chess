@@ -1,3 +1,4 @@
+// Modified from shibing624/chinese-chess-ai: optional game clock support, 2026.
 // 主程序入口
 
 import { ChineseChess } from './chess.js';
@@ -20,6 +21,7 @@ class GameController {
         this.isAIThinking = false;
         this.redTime = 900; // 15分钟
         this.blackTime = 900;
+        this.timerEnabled = false;
         this.timerInterval = null;
         
         this.init();
@@ -38,6 +40,9 @@ class GameController {
         document.getElementById('undoBtn').addEventListener('click', () => this.undoMove());
         document.getElementById('hintBtn').addEventListener('click', () => this.showHint());
         document.getElementById('soundBtn').addEventListener('click', () => this.toggleSound());
+        document.getElementById('timerToggle').addEventListener('change', (event) => {
+            this.setTimerEnabled(event.target.checked);
+        });
         
         // 设置游戏结束弹窗
         this.gameOverModal.onClose(() => {
@@ -47,7 +52,7 @@ class GameController {
         
         // 初始渲染
         this.updateDisplay();
-        this.startTimer();
+        this.infoDisplay.setTimerVisibility(this.timerEnabled);
     }
 
     /**
@@ -217,7 +222,11 @@ class GameController {
         this.isAIThinking = false;
         
         this.updateDisplay();
-        this.startTimer();
+        if (this.timerEnabled) {
+            this.startTimer();
+        } else {
+            this.stopTimer();
+        }
     }
 
     /**
@@ -385,13 +394,31 @@ class GameController {
     }
 
     /**
+     * 开启或关闭对局计时
+     */
+    setTimerEnabled(enabled) {
+        this.timerEnabled = enabled;
+        this.infoDisplay.setTimerVisibility(enabled);
+
+        if (enabled && !this.chess.gameOver) {
+            this.startTimer();
+        } else {
+            this.stopTimer();
+        }
+    }
+
+    /**
      * 启动计时器
      */
     startTimer() {
         this.stopTimer();
+
+        if (!this.timerEnabled || this.chess.gameOver) {
+            return;
+        }
         
         this.timerInterval = setInterval(() => {
-            if (this.chess.gameOver) {
+            if (!this.timerEnabled || this.chess.gameOver) {
                 this.stopTimer();
                 return;
             }
